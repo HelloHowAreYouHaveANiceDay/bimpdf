@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pdfbim legacy XMP namespace 1.0</title>
+<link rel="canonical" href="https://bimpdf.com/ns/1.0/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/kit/tokens.css">
+<link rel="stylesheet" href="/kit/base.css">
+</head>
+<body class="bk-page bk-page--reading" data-bk-density="reading" data-bk-property="bimpdf">
+<header class="bk-masthead">
+  <nav class="bk-nav" aria-label="Site">
+    <a class="bk-logo" href="/"><img src="/logo.svg" alt="" width="32" height="32"><span class="bk-wordmark">bim&middot;pdf</span></a>
+    <a href="/spec">Spec</a>
+  </nav>
+</header>
+<main>
+  <h1>pdfbim legacy XMP namespace, 1.0</h1>
+  <p>Earlier bim-pdf exports write XMP fields in the namespace <code>http://pdfbim.com/ns/1.0/</code> (prefix <code>pdfbim</code>). That URI points to this page. Readers MUST still read these fields; producers MAY keep writing them.</p>
+  <div class="bk-table-wrap" role="region" aria-label="Legacy properties" tabindex="0"><table>
+  <thead><tr><th>Property</th><th>Meaning</th></tr></thead>
+  <tbody>
+  <tr><td><code>pdfbim:version</code></td><td>The packaging generation (<code>2</code> so far). It is <strong>not</strong> the format version and MUST NOT be read as one.</td></tr>
+  <tr><td><code>pdfbim:generator</code></td><td>The tool that wrote the file.</td></tr>
+  </tbody></table></div>
+  <p>A file's format version comes from <code>bimpdf:formatVersion</code> (<a href="/ns/1/">/ns/1/</a>) or, for older files, from the <code>"bim-pdf"</code> field of <code>elements.json</code>. Detection order and migration rules: <a href="/spec#4-declaration-and-discovery">section 4</a> and <a href="/spec#7-migration">section 7</a> of the <a href="/spec">specification</a>.</p>
+</main>
+</body>
+</html>

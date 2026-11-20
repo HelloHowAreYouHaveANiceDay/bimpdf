@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bim-pdf format specification {{VERSION}}</title>
+<meta name="description" content="The .bim.pdf format {{VERSION}}: a standard PDF that carries BIM sidecars as associated files. Normative text, JSON Schemas, licence.">
+<link rel="canonical" href="https://bimpdf.com/spec">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/kit/tokens.css">
+<link rel="stylesheet" href="/kit/base.css">
+</head>
+<body class="bk-page bk-page--reading" data-bk-density="reading" data-bk-property="bimpdf">
+<header class="bk-masthead">
+  <nav class="bk-nav" aria-label="Site">
+    <a class="bk-logo" href="/"><img src="/logo.svg" alt="" width="32" height="32"><span class="bk-wordmark">bim&middot;pdf</span></a>
+    <a href="/spec">Spec</a>
+    <a href="/schema/bim-pdf-{{VERSION}}.schema.json">Schema</a>
+    <a href="https://bimcli.com">bim-cli</a>
+  </nav>
+</header>
+<main>
+  <section class="bk-hero">
+    <p class="bk-kicker">open format &middot; version {{VERSION}}</p>
+    <h1>The .bim.pdf format</h1>
+    <p class="bk-lead">A .bim.pdf is a valid PDF 1.7 file that carries BIM data as associated-file sidecars and declares itself in XMP. Current version: <strong>{{VERSION}}</strong>.</p>
+    <p class="bk-caption">Licence: this text is CC-BY-4.0; the schemas, reference types and validator are Apache-2.0. See <code>LICENSE-spec</code> and <code>LICENSE</code> in the repository.</p>
+  </section>
+
+  <h2 id="schemas">JSON Schemas</h2>
+  <p>Version-pinned URLs. Every published schema is frozen: its bytes and <code>$id</code> never change; new versions add files only.</p>
+  {{SCHEMA_LINKS}}
+
+  <h2 id="sidecars">Sidecar documents ({{VERSION}})</h2>
+  <p>Generated from the {{VERSION}} schema. Names are the attachment filenames.</p>
+  {{SIDECAR_TABLE}}
+
+  <h2 id="namespaces">Namespaces</h2>
+  <p>XMP label: <a href="/ns/1/"><code>https://bimpdf.com/ns/1/</code></a> (prefix <code>bimpdf</code>). Legacy packaging fields: <a href="/ns/1.0/"><code>http://pdfbim.com/ns/1.0/</code></a> (prefix <code>pdfbim</code>).</p>
+
+  <div class="spec-body">
+{{SPEC_BODY}}
+  </div>
+</main>
+<footer class="bk-footer">
+  <p>bim&middot;pdf &mdash; an open format for AEC PDF data</p>
+  <nav class="bk-linkrow" aria-label="Footer"><a href="/">Home</a><a href="/llms.txt">llms.txt</a><a href="https://bimcli.com">bim-cli</a></nav>
+</footer>
+</body>
+</html>

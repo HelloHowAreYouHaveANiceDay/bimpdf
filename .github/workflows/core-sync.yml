@@ -1,0 +1,51 @@
+name: core-sync
+# Daily (and on demand): refresh vendor/core from the pdfmarkuptool repo's packages/core and open a pin PR when it changed.
+# Needs the repo secret PMT_READ_TOKEN (fine-grained PAT, contents:read on pdfmarkuptool).
+# Dispatch-only until PMT_READ_TOKEN exists (follow-up). Re-add the schedule then.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  core-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: sync vendor/core
+        env:
+          GH_TOKEN: ${{ secrets.PMT_READ_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::PMT_READ_TOKEN is not set; skipping core-sync"
+            exit 0
+          fi
+          node scripts/core-sync.mjs
+          node scripts/vendor-sums.mjs
+      - name: open pin PR when vendor/ changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet -- vendor; then
+            echo "vendor/core already current"
+            exit 0
+          fi
+          sha=$(sed -n 's/^commit: //p' vendor/core/UPSTREAM)
+          branch="core-sync/${sha:0:8}"
+          git config user.name "core-sync"
+          git config user.email "core-sync@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add vendor
+          git commit -m "core-sync: vendor/core -> ${sha:0:8}"
+          git push --force origin "$branch"
+          gh pr create --base main --head "$branch" --title "core-sync: vendor/core -> ${sha:0:8}" \
+            --body "Automated pin of vendor/core to pdfmarkuptool packages/core @ $sha. CI checks vendor/SHA256SUMS; the deploy job compares live bimpdf.com/schema hashes." \
+            || gh pr view "$branch" --json url --jq .url

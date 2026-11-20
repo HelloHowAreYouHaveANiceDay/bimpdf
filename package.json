@@ -1,0 +1,20 @@
+{
+  "name": "bimpdf-site",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "build": "node gen-version.mjs",
+    "typecheck": "node --check gen-version.mjs",
+    "lint:strict": "node --check gen-version.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "4.8.1",
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.10.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2"
+  }
+}

@@ -1,0 +1,21 @@
+# Static spec page for bimpdf.com -- format spec home (independent of bimcli.com)
+# Worker name matches old bim-pdf-worker so CF custom domain routing stays intact.
+name = "bim-pdf-worker"
+account_id = "fe69952c4f0294c0036af5f09fdd21ff"
+compatibility_date = "2024-12-01"
+workers_dev = true
+
+[build]
+command = "npm run build"
+
+[assets]
+directory = "."
+# Serve /404.html (404 status) for genuinely unknown paths instead of the
+# homepage catch-all, so /robots.txt, /sitemap.xml, /llms.txt resolve to their
+# real files and crawlers get a true 404 elsewhere.
+not_found_handling = "404-page"
+
+[env.preview]
+name = "bimpdf-site-preview"
+workers_dev = true
+

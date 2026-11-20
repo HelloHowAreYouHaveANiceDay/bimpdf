@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://bimpdf.com/sitemap.xml
+
+# IndexNow: https://bimpdf.com/94a315de3bdee4a52d3276e239139df9.txt

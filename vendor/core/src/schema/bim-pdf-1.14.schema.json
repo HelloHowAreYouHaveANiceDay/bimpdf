@@ -1,0 +1,1686 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bimpdf.com/schema/bim-pdf-1.14.schema.json",
+  "title": "bim-pdf sidecar format v1.14",
+  "description": "v1.14 is additive over v1.13 and changes no sidecar shape: it ships with the declaration rules of spec 0002 (XMP label, /Extensions, AFRelationship + /Desc; https://bimpdf.com/spec). Canonical JSON Schema for the bim-pdf sidecar documents embedded in a PDF/A-3 as associated files. Source of truth mirrors packages/core/src/types/*.ts. Schemas are intentionally OPEN (unknown properties allowed) so producers may add namespaced fields without breaking consumers during iteration; required fields and known field types are still enforced. v1.13 is additive over v1.12 (view links): a scales.json viewport gains refs[] -- the section / elevation / callout / detail heads drawn in it, each pointing at its target VIEW by UniqueId (view_id), never at a sheet number -- and primary_view_id (set on a placed dependent view: its parent view); a scales.json page gains unresolved (that page's markers whose target the producer could not resolve); Mark gains vp (an index into the same page's scales viewports). scales.json is thereby the package's view placements. All new fields are optional, so v1.12 documents remain valid and old readers ignore them. v1.12 is additive over v1.11: an optional pages.json page manifest (PagesDocument) gives every page a stable page_id and its own source provenance, so one PDF can combine pages from several source documents (Revit, a spreadsheet, Rhino, ...); BimElement gains an optional document_id that scopes its id to one source document (required by the package validator when pages.json lists more than one source document). Without pages.json a v1.12 package means exactly what v1.11 did. v1.11 was additive over v1.10: annotations.json Annotation gains the markup review-loop fields rev (monotonic integer revision), status (review status enum), status_history (append-only audit trail), in_reply_to (reply-chain parent id) and delta (a replayable, driver-agnostic model-edit proposal). All new fields are optional so v1.10 documents remain valid. All sidecar geometry is in NATIVE PDF user space; see DESIGN.md \"Coordinate Spaces & Units\".",
+  "definitions": {
+    "FormatVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Major.minor format version, e.g. \"1.0\"."
+    },
+    "Quantity": {
+      "type": "object",
+      "required": [
+        "value",
+        "unit"
+      ],
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string",
+          "description": "SI-ish unit string: m, m2, m3, mm, ft, ft2, ft3, in, etc."
+        }
+      }
+    },
+    "BBox": {
+      "type": "array",
+      "description": "Axis-aligned bbox in PDF points, origin bottom-left, Y-up: [x0, y0, x1, y1].",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "Point2D": {
+      "type": "array",
+      "description": "2D point in PDF points: [x, y].",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "ElementClass": {
+      "type": "string",
+      "description": "Class registry: 23 named classes plus producer-neutral pre-design classes parcel, zoning-envelope, and mass, plus 'other'. Values outside this set should use 'other' with class_hint.",
+      "enum": [
+        "wall",
+        "curtain-wall",
+        "slab",
+        "floor",
+        "column",
+        "beam",
+        "brace",
+        "footing",
+        "roof",
+        "door",
+        "window",
+        "curtain-panel",
+        "curtain-mullion",
+        "ceiling",
+        "room",
+        "stair",
+        "ramp",
+        "furniture",
+        "casework",
+        "equipment",
+        "parcel",
+        "zoning-envelope",
+        "mass",
+        "other"
+      ]
+    },
+    "ElementsDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "meta",
+        "source",
+        "class_registry",
+        "elements"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta"
+        },
+        "source": {
+          "$ref": "#/definitions/BimPdfSource"
+        },
+        "class_registry": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimElement"
+          }
+        }
+      }
+    },
+    "BimPdfMeta": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "document_id",
+        "exported_at",
+        "producer"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "exported_at": {
+          "type": "string",
+          "description": "ISO 8601 datetime."
+        },
+        "producer": {
+          "type": "string"
+        },
+        "authority": {
+          "type": "string",
+          "description": "Optional free-text guidance for automated consumers about source authority, e.g. that the printed sheets are contractually authoritative."
+        }
+      }
+    },
+    "BimPdfSource": {
+      "type": "object",
+      "required": [
+        "format",
+        "id_strategy"
+      ],
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Native source format, e.g. 'revit', 'ifc'."
+        },
+        "version": {
+          "type": "string"
+        },
+        "id_strategy": {
+          "type": "string"
+        },
+        "id_stability_notes": {
+          "type": "string"
+        }
+      }
+    },
+    "BimElement": {
+      "type": "object",
+      "required": [
+        "id",
+        "class"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable across re-exports of the same model version. When a producer has no native element id, use a UUID v5 derived deterministically from a stable seed such as parcel_apn + \"/\" + block_index."
+        },
+        "class": {
+          "$ref": "#/definitions/ElementClass"
+        },
+        "document_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "v1.12: the source document this element belongs to -- a pages.json source.document_id. Element identity is the pair (document_id, id). Optional; when absent the element belongs to the package's single source. REQUIRED (package validator) when pages.json lists more than one distinct source.document_id."
+        },
+        "class_hint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Producer's native category name. Required when class === 'other'."
+        },
+        "label": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "level_id": {
+          "type": "string",
+          "description": "UUID v5 referencing an entry in levels.json."
+        },
+        "scheduled_in_view": {
+          "type": "boolean",
+          "description": "False when the producer's view or schedule filters exclude this element from the printed document set, so consumers can reconcile model counts against sheet counts."
+        },
+        "quantities": {
+          "type": "object",
+          "properties": {
+            "area": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "volume": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "length": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "width": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "height": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "perimeter": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "count": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "weight": {
+              "$ref": "#/definitions/Quantity"
+            }
+          }
+        },
+        "properties": {
+          "type": "object",
+          "description": "Namespaced property bag: keys prefixed by producer (e.g. 'revit.family')."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "class_hint is required when class is 'other'.",
+          "if": {
+            "properties": {
+              "class": {
+                "const": "other"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "class_hint"
+            ]
+          }
+        }
+      ]
+    },
+    "MarksDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "requires",
+        "coordinate_space",
+        "marks"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "const": "elements.json"
+          }
+        },
+        "coordinate_space": {
+          "type": "string"
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Mark"
+          }
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta",
+          "description": "Provenance of the export this sidecar came from. Optional; when present it MUST match the meta of the other sidecars in the same package."
+        }
+      }
+    },
+    "Mark": {
+      "type": "object",
+      "required": [
+        "element_id",
+        "page",
+        "bbox"
+      ],
+      "properties": {
+        "element_id": {
+          "type": "string"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page number."
+        },
+        "bbox": {
+          "$ref": "#/definitions/BBox"
+        },
+        "view_type": {
+          "type": "string",
+          "description": "plan | elevation | section | detail | schedule | 3d | (open string)."
+        },
+        "outline": {
+          "type": "array",
+          "description": "Projected outline of the element, SAME coordinate space as bbox. Array of rings; each ring is a closed list of [x, y] points. Absent when the producer could not extract geometry -- consumers fall back to bbox.",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/Point2D"
+            }
+          }
+        },
+        "depth": {
+          "type": "number",
+          "description": "Distance of the element (centroid) from the view plane along the view direction, producer-defined linear units, SMALLER = nearer. Only the ordering is meaningful (overlap ranking), never measurement."
+        },
+        "visibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Hidden-line visibility fraction (0..1): share of the element footprint NOT covered by strictly nearer opaque geometry in its view. 0 = drawn but fully behind other geometry."
+        },
+        "sheet_number": {
+          "type": "string",
+          "description": "Corroborating sheet identity for this mark, e.g. \"A601\". page remains the operational binding; sheet_number lets a consumer detect and repair page reordering."
+        },
+        "vp": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "v1.13: index into the same page's scales.json viewports -- the viewport this mark is drawn in."
+        }
+      }
+    },
+    "ScalesDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "pages"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "pages": {
+          "type": "object",
+          "description": "Keys are 1-indexed page numbers as strings.",
+          "additionalProperties": {
+            "$ref": "#/definitions/PageScaleEntry"
+          }
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta",
+          "description": "Provenance of the export this sidecar came from. Optional; when present it MUST match the meta of the other sidecars in the same package."
+        }
+      }
+    },
+    "PageScaleEntry": {
+      "description": "Either a flat PageScale (v1.0, one scale per page) or a viewport-aware PageScaleSet (v1.1+).",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/PageScale"
+        },
+        {
+          "$ref": "#/definitions/PageScaleSet"
+        }
+      ]
+    },
+    "PageScaleSet": {
+      "type": "object",
+      "description": "Per-page scale info for a multi-viewport sheet. Distinguished from a flat PageScale by the absence of a top-level 'type' discriminant.",
+      "not": {
+        "required": [
+          "type"
+        ]
+      },
+      "properties": {
+        "geometry": {
+          "$ref": "#/definitions/PageGeometry"
+        },
+        "default": {
+          "$ref": "#/definitions/PageScale"
+        },
+        "viewports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScaleViewport"
+          }
+        },
+        "unresolved": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "v1.13: view reference markers drawn on THIS page whose target view the producer could not resolve (not written as refs). A missed link is reported, never silent. Per page, not per document: scales.json is page-scoped, so a page slice carries its own count."
+        },
+        "sheet_number": {
+          "type": "string",
+          "description": "The sheet this page's scales were measured on, e.g. \"A601\" -- a CORROBORATING key, not a replacement for the page-number map key. A scale is applied by page ordinal; if pages are reordered after export, that ordinal silently selects the wrong scale and every measurement taken on the page is wrong, with nothing to notice it. This field lets a consumer cross-check the ordinal against titleblock.json and refuse to calibrate when they disagree. Optional: producers with no titleblock (e.g. IFC exports) omit it."
+        }
+      }
+    },
+    "ScaleViewport": {
+      "type": "object",
+      "required": [
+        "rect",
+        "scale"
+      ],
+      "properties": {
+        "rect": {
+          "$ref": "#/definitions/BBox"
+        },
+        "scale": {
+          "$ref": "#/definitions/PageScale"
+        },
+        "name": {
+          "type": "string"
+        },
+        "view_id": {
+          "type": "string"
+        },
+        "pdf_from_model": {
+          "$ref": "#/definitions/AffineMatrix2D",
+          "description": "Affine transform mapping model coordinates (in model_unit) to PDF user-space points for this viewport. When present, consumers MUST prefer it over scale for measurement and pdf<->model round trips."
+        },
+        "model_unit": {
+          "type": "string",
+          "description": "Linear unit of the model coordinates pdf_from_model maps from, e.g. \"mm\", \"m\", \"ft\"."
+        },
+        "refs": {
+          "type": "array",
+          "description": "v1.13: the view-reference heads drawn inside this viewport.",
+          "items": {
+            "$ref": "#/definitions/ViewRef"
+          }
+        },
+        "primary_view_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "v1.13: set on a placed DEPENDENT view -- its parent (primary) view's view_id. A ref to the parent resolves to its placed dependents."
+        }
+      }
+    },
+    "PageScale": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/RatioScale"
+        },
+        {
+          "$ref": "#/definitions/CalibrationScale"
+        }
+      ]
+    },
+    "RatioScale": {
+      "type": "object",
+      "required": [
+        "type",
+        "ratio",
+        "unit"
+      ],
+      "properties": {
+        "type": {
+          "const": "ratio"
+        },
+        "ratio": {
+          "type": "number",
+          "description": "Denominator of the scale ratio; 100 means 1:100."
+        },
+        "unit": {
+          "type": "string"
+        }
+      }
+    },
+    "CalibrationScale": {
+      "type": "object",
+      "required": [
+        "type",
+        "p1",
+        "p2",
+        "real_distance"
+      ],
+      "properties": {
+        "type": {
+          "const": "calibration"
+        },
+        "p1": {
+          "$ref": "#/definitions/Point2D"
+        },
+        "p2": {
+          "$ref": "#/definitions/Point2D"
+        },
+        "real_distance": {
+          "$ref": "#/definitions/Quantity"
+        }
+      }
+    },
+    "LevelsDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "levels"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimLevel"
+          }
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta",
+          "description": "Provenance of the export this sidecar came from. Optional; when present it MUST match the meta of the other sidecars in the same package."
+        }
+      }
+    },
+    "BimLevel": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "elevation"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "UUID v5; must match element.level_id references."
+        },
+        "name": {
+          "type": "string"
+        },
+        "elevation": {
+          "$ref": "#/definitions/Quantity"
+        }
+      }
+    },
+    "TitleblockDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "sheets"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "sheets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TitleBlockSheet"
+          }
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta",
+          "description": "Provenance of the export this sidecar came from. Optional; when present it MUST match the meta of the other sidecars in the same package."
+        }
+      }
+    },
+    "TitleBlockSheet": {
+      "type": "object",
+      "required": [
+        "page"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page number."
+        },
+        "sheet_number": {
+          "type": "string"
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "project_name": {
+          "type": "string"
+        },
+        "project_number": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "scale": {
+          "type": "string"
+        },
+        "drawn_by": {
+          "type": "string"
+        },
+        "checked_by": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "titleblock": {
+          "$ref": "#/definitions/SheetTitleblock"
+        },
+        "zoning_data_block": {
+          "$ref": "#/definitions/ZoningDataBlock"
+        },
+        "area_tabulation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AreaTabulationEntry"
+          }
+        },
+        "legend": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SheetLegendEntry"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "SheetTitleblock": {
+      "type": "object",
+      "properties": {
+        "project_name": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "project_address": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "sheet_title": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "sheet_number": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "scale": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "date": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "north_deg": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "firm": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "drawn_by": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TitleblockRevision"
+          }
+        }
+      }
+    },
+    "TitleblockRevision": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "description": {
+          "$ref": "#/definitions/NullableString"
+        }
+      }
+    },
+    "ZoningDataBlock": {
+      "type": "object",
+      "properties": {
+        "district": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "lot_area_sf": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "far_allowed": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "far_proposed": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "height_allowed_ft": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "height_proposed_ft": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "coverage_allowed": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "coverage_proposed": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "setbacks": {
+          "$ref": "#/definitions/ZoningSetbacks"
+        },
+        "parking_required": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ZoningSetbacks": {
+      "type": "object",
+      "properties": {
+        "front": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "side": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "rear": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        }
+      }
+    },
+    "AreaTabulationEntry": {
+      "type": "object",
+      "required": [
+        "label",
+        "unit"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "unit": {
+          "type": "string"
+        }
+      }
+    },
+    "SheetLegendEntry": {
+      "type": "object",
+      "required": [
+        "meaning"
+      ],
+      "properties": {
+        "symbol": {
+          "type": "string"
+        },
+        "line_type": {
+          "type": "string"
+        },
+        "meaning": {
+          "type": "string"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "symbol"
+          ]
+        },
+        {
+          "required": [
+            "line_type"
+          ]
+        }
+      ]
+    },
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "NullableNumber": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "StringNumberOrNull": {
+      "type": [
+        "string",
+        "number",
+        "null"
+      ]
+    },
+    "AnnotationsDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "requires",
+        "coordinate_space",
+        "annotations"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "const": "elements.json"
+          }
+        },
+        "coordinate_space": {
+          "type": "string"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MarkupLayer"
+          }
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Annotation"
+          }
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta",
+          "description": "Provenance of the export this sidecar came from. Optional; when present it MUST match the meta of the other sidecars in the same package."
+        }
+      }
+    },
+    "AnnotationType": {
+      "type": "string",
+      "description": "Markup types (human/agent authored) plus producer-extracted types (dimension, tag, detail, other).",
+      "enum": [
+        "polygon",
+        "polyline",
+        "rectangle",
+        "circle",
+        "text",
+        "arrow",
+        "callout",
+        "cloud",
+        "stamp",
+        "highlight",
+        "freehand",
+        "count",
+        "dimension",
+        "tag",
+        "detail",
+        "other"
+      ]
+    },
+    "AnnotationAuthor": {
+      "type": "object",
+      "required": [
+        "id",
+        "display",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "display": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "human",
+            "agent"
+          ]
+        }
+      }
+    },
+    "AnnotationStyle": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": "string"
+        },
+        "fill_color": {
+          "type": "string"
+        },
+        "line_width": {
+          "type": "number"
+        },
+        "opacity": {
+          "type": "number"
+        }
+      }
+    },
+    "MarkupLayer": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable layer id referenced by Annotation.layer_id."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name; must match the baked PDF Optional Content Group /Name."
+        },
+        "default_visible": {
+          "type": "boolean",
+          "description": "Initial layer visibility in the baked PDF. Omitted means true."
+        },
+        "locked": {
+          "type": "boolean",
+          "description": "When true, the UI should not allow toggling this layer."
+        }
+      }
+    },
+    "Annotation": {
+      "type": "object",
+      "required": [
+        "id",
+        "page",
+        "type",
+        "author",
+        "created_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "$ref": "#/definitions/AnnotationType"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Point2D"
+          },
+          "description": "Vertices for polygon, polyline, arrow, callout."
+        },
+        "bbox": {
+          "$ref": "#/definitions/BBox"
+        },
+        "label": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/definitions/AnnotationAuthor"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "ISO 8601 datetime."
+        },
+        "element_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Element association: links to zero or more elements in elements.json. A single-target markup uses a one-entry array; a region markup (e.g. a revision cloud enclosing several elements) carries many. Absent/empty = freeform annotation."
+        },
+        "label_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Id of a text/callout annotation that labels this graphic markup; absent/null = inline label or proximity-inferred."
+        },
+        "group_id": {
+          "type": "string",
+          "description": "Shared id clustering annotations that form one logical markup unit (e.g. a cloud + the callout labeling it)."
+        },
+        "layer_id": {
+          "type": "string",
+          "description": "Explicit markup-layer membership referencing a MarkupLayer.id; baking maps this to the annotation's /OC entry."
+        },
+        "style": {
+          "$ref": "#/definitions/AnnotationStyle"
+        },
+        "measurement": {
+          "type": "object",
+          "properties": {
+            "area": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "perimeter": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "length": {
+              "$ref": "#/definitions/Quantity"
+            }
+          }
+        },
+        "rev": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Monotonic per-markup revision; every mutation increments it by exactly 1. Absent on pre-v1.11 documents (treat as 1)."
+        },
+        "status": {
+          "$ref": "#/definitions/ReviewStatus"
+        },
+        "status_history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/StatusHistoryEntry"
+          },
+          "description": "Append-only audit trail of status transitions (the ISO 32000 reply-chain flattened)."
+        },
+        "in_reply_to": {
+          "type": "string",
+          "description": "Id of the annotation this one replies to (e.g. a drafter's proposal replying to a human markup)."
+        },
+        "delta": {
+          "$ref": "#/definitions/MarkupDelta"
+        }
+      }
+    },
+    "Model3dDocument": {
+      "type": "object",
+      "description": "Optional live 3D model placements for embedded glb attachments. Element-to-mesh links stay inside the glb via glTF node.extras.element_id; this sidecar only describes where each model activates on the sheet and how to frame its camera.",
+      "required": [
+        "bim-pdf",
+        "meta",
+        "models"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta"
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Model3dEntry"
+          }
+        }
+      }
+    },
+    "Model3dEntry": {
+      "type": "object",
+      "required": [
+        "glb_ref",
+        "page",
+        "anchor_rect",
+        "camera",
+        "model_center_offset",
+        "unit"
+      ],
+      "properties": {
+        "glb_ref": {
+          "type": "string",
+          "description": "Filename of the embedded glb attachment, e.g. \"model.glb\"."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed PDF page the 3D view sits on."
+        },
+        "anchor_rect": {
+          "$ref": "#/definitions/BBox",
+          "description": "Sheet region in PDF user-space points where the flat poster sits and the live model activates."
+        },
+        "camera": {
+          "$ref": "#/definitions/Model3dCamera"
+        },
+        "model_center_offset": {
+          "type": "array",
+          "description": "Meters subtracted from geometry before float32 cast; viewers add it back to place the camera in the same world frame.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "unit": {
+          "const": "m",
+          "description": "Linear unit for camera and model_center_offset."
+        },
+        "compression": {
+          "type": "string",
+          "enum": [
+            "none",
+            "draco"
+          ],
+          "default": "none"
+        }
+      }
+    },
+    "Model3dCamera": {
+      "type": "object",
+      "description": "Camera framing for a live glTF 3D view, in meters and glTF Y-up. Supports orthographic and perspective projections (mirrors glTF 2.0 camera schema).",
+      "required": [
+        "projection",
+        "eye",
+        "target",
+        "up"
+      ],
+      "properties": {
+        "projection": {
+          "type": "string",
+          "enum": [
+            "orthographic",
+            "perspective"
+          ]
+        },
+        "eye": {
+          "type": "array",
+          "description": "Camera position in world space, meters, glTF Y-up.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "target": {
+          "type": "array",
+          "description": "Point the camera looks at, meters, glTF Y-up.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "up": {
+          "type": "array",
+          "description": "Camera up vector (unit), glTF Y-up.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "ortho_half_extents": {
+          "type": "array",
+          "description": "[half-width, half-height] of the orthographic frustum, in meters. Required when projection is orthographic.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "perspective": {
+          "type": "object",
+          "description": "Perspective projection parameters, mirrors glTF camera.perspective. Required when projection is perspective.",
+          "required": [
+            "yfov"
+          ],
+          "properties": {
+            "yfov": {
+              "type": "number",
+              "description": "Vertical field of view in radians.",
+              "exclusiveMinimum": 0
+            },
+            "aspectRatio": {
+              "type": "number",
+              "description": "Aspect ratio (width / height).",
+              "exclusiveMinimum": 0
+            },
+            "znear": {
+              "type": "number",
+              "description": "Near clipping plane distance in meters.",
+              "exclusiveMinimum": 0
+            },
+            "zfar": {
+              "type": "number",
+              "description": "Far clipping plane distance in meters.",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "projection": {
+                "const": "orthographic"
+              }
+            },
+            "required": [
+              "projection"
+            ]
+          },
+          "then": {
+            "required": [
+              "ortho_half_extents"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "projection": {
+                "const": "perspective"
+              }
+            },
+            "required": [
+              "projection"
+            ]
+          },
+          "then": {
+            "required": [
+              "perspective"
+            ]
+          }
+        }
+      ]
+    },
+    "ScheduleRowType": {
+      "type": "string",
+      "description": "Row classification for a BimSchedule rows[] entry. 'data' rows are actual element rows; 'header' rows are column-heading rows at the top; 'group' rows are group-band separators; 'total' rows are group or grand total lines. Consumers MUST use row_types or data_row_count to identify element rows -- never assume all rows[] entries are data.",
+      "enum": [
+        "data",
+        "header",
+        "group",
+        "total"
+      ]
+    },
+    "SchedulesDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "meta",
+        "schedules"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta"
+        },
+        "schedules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimSchedule"
+          }
+        }
+      }
+    },
+    "BimSchedule": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "category_hint",
+        "sheet_number",
+        "page",
+        "itemized",
+        "fields",
+        "filters",
+        "sort_group",
+        "rows",
+        "member_element_ids"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Producer-stable schedule view id."
+        },
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/definitions/ElementClass"
+        },
+        "category_hint": {
+          "type": "string",
+          "description": "Producer's native schedule category name."
+        },
+        "sheet_number": {
+          "type": "string",
+          "description": "Sheet number where this schedule is printed, e.g. \"A601\"."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page number in this PDF where the schedule is printed."
+        },
+        "itemized": {
+          "type": "boolean",
+          "description": "False when printed rows are grouped aggregates rather than one row per element."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimScheduleField"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimScheduleFilter"
+          }
+        },
+        "sort_group": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimScheduleSortGroup"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "description": "Printed body cell text, row-major, exactly as rendered. May include non-data rows (group band headers, group totals). Consumers MUST use row_types or data_row_count rather than len(rows) to count actual elements.",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "row_types": {
+          "type": "array",
+          "description": "Parallel classification for each entry in rows[]. MUST be the same length as rows[]. Absent on pre-v1.10 documents. When present, consumers MUST use this instead of assuming all rows[] entries are data rows.",
+          "items": {
+            "$ref": "#/definitions/ScheduleRowType"
+          }
+        },
+        "data_row_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of rows[] entries classified as 'data'. For itemized schedules this equals len(member_element_ids) -- the invariant enforced by validation."
+        },
+        "header_row_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Count of leading column-heading rows in rows[]. Computed by the exporter and included here so consumers can strip headers without parsing row_types."
+        },
+        "excluded_element_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of model elements in this schedule's category that the schedule's own filters excluded. When non-zero, data_row_count (== printed count) differs from the model's total element count. This is the field that surfaces the model gap: a consumer seeing data_row_count=132 alongside excluded_element_count=9 knows 141 total elements exist, not 132."
+        },
+        "excluded_element_ids": {
+          "type": "array",
+          "description": "Element ids excluded by this schedule's filters. Parallel to excluded_element_count.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "member_element_ids": {
+          "type": "array",
+          "description": "Join keys to elements.json ids; may be empty when membership could not be recovered.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "BimScheduleField": {
+      "type": "object",
+      "required": [
+        "heading"
+      ],
+      "properties": {
+        "heading": {
+          "type": "string",
+          "description": "Printed column heading."
+        },
+        "parameter": {
+          "type": "string",
+          "description": "Producer parameter name for this column, when known."
+        }
+      }
+    },
+    "BimScheduleFilter": {
+      "type": "object",
+      "required": [
+        "field",
+        "operator",
+        "value"
+      ],
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string",
+          "description": "Producer-native filter enum/string, e.g. Revit ScheduleFilterType names."
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "BimScheduleSortGroup": {
+      "type": "object",
+      "required": [
+        "field",
+        "ascending"
+      ],
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "ascending": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AffineMatrix2D": {
+      "type": "array",
+      "description": "2D affine transform in PDF matrix convention [a,b,c,d,e,f]: x' = a*x + c*y + e; y' = b*x + d*y + f.",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "PagesDocument": {
+      "type": "object",
+      "description": "v1.12 pages.json -- the page manifest. One entry per PDF page, in page order, 1-based and contiguous (1..N), each with a unique stable page_id and its own source provenance. When present, a sidecar record's source is the source of the page it sits on. Invariants JSON Schema cannot express (contiguous pages, unique page_id, page_id = source.document_id + ':' + native_key) are enforced by the core validator.",
+      "required": [
+        "bim-pdf",
+        "meta",
+        "pages"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta",
+          "description": "Provenance of the ASSEMBLED package (the tool that combined the pages). Each page's own provenance is its source."
+        },
+        "pages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/PageEntry"
+          }
+        }
+      }
+    },
+    "PageEntry": {
+      "type": "object",
+      "required": [
+        "page",
+        "page_id",
+        "native_key",
+        "source"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page number (display/ordinal binding; unique and contiguous 1..N across the manifest)."
+        },
+        "page_id": {
+          "type": "string",
+          "minLength": 3,
+          "description": "Stable page identity: source.document_id + ':' + native_key. Unique within the manifest. Survives page reordering and recombination."
+        },
+        "native_key": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The source's own stable key for this page: Revit sheet UniqueId, workbook sheet name, Rhino layout id, else the page label."
+        },
+        "sheet_number": {
+          "type": "string",
+          "description": "Human sheet number, e.g. \"A601\", when the source has one."
+        },
+        "label": {
+          "type": "string",
+          "description": "Human page label / title."
+        },
+        "source": {
+          "$ref": "#/definitions/PageSource"
+        },
+        "geometry": {
+          "$ref": "#/definitions/PageGeometry",
+          "description": "The page boxes and /Rotate as written in the PDF (same shape as scales.json geometry)."
+        }
+      }
+    },
+    "PageSource": {
+      "type": "object",
+      "description": "Per-page source provenance: which source document (and which export of it) this page was rendered from.",
+      "required": [
+        "driver",
+        "document_id",
+        "producer",
+        "exported_at"
+      ],
+      "properties": {
+        "driver": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The bim-cli driver that rendered the page, e.g. revit | excel | rhino | code; 'none' for a page with no driver (a plain PDF page)."
+        },
+        "document_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Stable id of the source document (e.g. the model GUID / project-info UniqueId, a workbook id) -- NOT derived from a file path. Scopes element ids."
+        },
+        "producer": {
+          "type": "string",
+          "description": "Exporter name/version, e.g. BimPdfAddin/0.9.0."
+        },
+        "exported_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$",
+          "description": "RFC 3339 date-time of the export this page came from (a pattern rather than format: date-time, so validators without a format plugin still enforce it)."
+        },
+        "revision": {
+          "type": "string",
+          "description": "Source document revision this page was rendered from, when the source has one."
+        },
+        "format": {
+          "type": "string",
+          "description": "Native source format, e.g. rvt, xlsx, 3dm."
+        }
+      }
+    },
+    "PageGeometry": {
+      "type": "object",
+      "description": "Per-page PDF geometry snapshot. Mirrors the page boxes as written in the PDF so a consumer can validate sidecar coordinates against the file and detect legacy (pre-v1.1, page-relative) sidecars by its absence. Presence of a geometry block on any page declares the whole package to be native-user-space by contract.",
+      "required": [
+        "media_box"
+      ],
+      "properties": {
+        "media_box": {
+          "$ref": "#/definitions/BBox",
+          "description": "The page /MediaBox: [x0, y0, x1, y1]."
+        },
+        "crop_box": {
+          "$ref": "#/definitions/BBox",
+          "description": "The page /CropBox when it differs from /MediaBox."
+        },
+        "rotate": {
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ],
+          "description": "The page /Rotate value (display-only rotation), degrees clockwise."
+        }
+      }
+    },
+    "ReviewStatus": {
+      "type": "string",
+      "description": "Markup review status. Legal transitions are defined by packages/core/src/markups/reviewStatus.ts (open -> grounded -> proposed -> accepted -> applying -> resolved -> restored -> applying (reapply); proposed -> rejected; any step may go to needs-human).",
+      "enum": [
+        "open",
+        "grounded",
+        "proposed",
+        "accepted",
+        "rejected",
+        "applying",
+        "resolved",
+        "restored",
+        "needs-human"
+      ]
+    },
+    "StatusHistoryEntry": {
+      "type": "object",
+      "required": [
+        "status",
+        "by",
+        "at"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/definitions/ReviewStatus"
+        },
+        "by": {
+          "$ref": "#/definitions/AnnotationAuthor"
+        },
+        "at": {
+          "type": "string",
+          "description": "ISO 8601 datetime of the transition."
+        }
+      }
+    },
+    "MarkupDelta": {
+      "type": "object",
+      "description": "A proposed model edit: a bim-cli request plus the preimage it overwrites, replayable and driver-agnostic. Present only on proposal-stage markups (status proposed or later).",
+      "required": [
+        "driver",
+        "verb",
+        "args",
+        "base_rev",
+        "summary"
+      ],
+      "properties": {
+        "driver": {
+          "type": "string",
+          "description": "bim-cli driver name, e.g. \"revit\"."
+        },
+        "verb": {
+          "type": "string",
+          "description": "Driver verb to invoke, e.g. \"exec\"."
+        },
+        "args": {
+          "type": "object",
+          "description": "Verb arguments, passed through verbatim."
+        },
+        "preimage": {
+          "type": "object",
+          "description": "Pre-edit state of the touched element(s), e.g. {element_id, params}."
+        },
+        "base_rev": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The markup rev the proposal was computed against."
+        },
+        "base_package_hash": {
+          "type": "string",
+          "description": "Hash of the bim-pdf package the proposal was computed against, e.g. \"sha256:...\"."
+        },
+        "summary": {
+          "type": "string",
+          "description": "One-line human-readable description of the edit."
+        }
+      }
+    },
+    "ViewRef": {
+      "type": "object",
+      "description": "v1.13: one view-reference head drawn inside a scales viewport (a section, elevation, callout or detail marker) and the view it points at. Navigate by view_id only -- resolve it against the scales viewports of the pages in the current set; target_sheet_number / target_detail_number are the PRINTED label, a lookup hint and the \"not in this set\" message, never a navigation key. Rects are in the page's raw PDF points, the same convention as ScaleViewport.rect.",
+      "required": [
+        "marker_id",
+        "kind",
+        "view_id",
+        "view_name",
+        "heads",
+        "bbox"
+      ],
+      "properties": {
+        "marker_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Producer id of the marker element (Revit: the OST_Viewers element). NOT an elements.json id."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "section",
+            "elevation",
+            "callout",
+            "detail"
+          ]
+        },
+        "view_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The TARGET view's stable id (Revit UniqueId) -- the same value as the target viewport's view_id (or, for a parent view placed only through dependents, their primary_view_id)."
+        },
+        "view_name": {
+          "type": "string"
+        },
+        "target_sheet_number": {
+          "type": "string",
+          "description": "The sheet number printed in the head (a hint only)."
+        },
+        "target_detail_number": {
+          "type": "string",
+          "description": "The detail number printed in the head (a hint only)."
+        },
+        "heads": {
+          "type": "array",
+          "description": "The tappable head symbols, each capped at about 2 x its min side; a callout emits its bubble only, never its boundary. May be empty.",
+          "items": {
+            "$ref": "#/definitions/BBox"
+          }
+        },
+        "bbox": {
+          "$ref": "#/definitions/BBox",
+          "description": "The whole marker (a callout's boundary, a section's cut line)."
+        }
+      }
+    }
+  }
+}

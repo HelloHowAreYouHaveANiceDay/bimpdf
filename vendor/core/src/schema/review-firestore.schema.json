@@ -1,0 +1,661 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bimpdf.com/schema/review-firestore.schema.json",
+  "title": "pdfmarkuptool review-session Firestore documents",
+  "description": "The stored shape of the Firestore documents the markup review loop shares between pdfmarkuptool (the SPA, zod in apps/pdfmarkuptool/src/types/schemas.ts, drift-tested against this file), the Cloud Functions, and pdf-cli's markups.* verbs (typed Go structs; every emulator-test write is validated against a byte-identical vendored copy). Single source per architecture review 2026-09-23, 1.2. One definition per collection (review contract v7: ReviewerEvent replaces ReviewSignal; a proposal is request + review, the legacy delta is read-only); the document id is the path segment and is never a field. Encoding for validation: a Firestore Timestamp is written as {seconds, nanoseconds} (its JSON form); every other value is its JSON value.",
+  "definitions": {
+    "Project": {
+      "$comment": "projects/{projectId}",
+      "type": "object",
+      "required": ["ownerId", "name", "status", "unitSystem", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "ownerId": { "type": "string" },
+        "ownerEmail": { "type": "string", "description": "Empty for a drafter-owned review session. Read as '' when absent." },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "archived"] },
+        "unitSystem": { "type": "string", "enum": ["metric", "imperial"] },
+        "createdAt": { "$ref": "#/definitions/Timestamp" },
+        "updatedAt": { "$ref": "#/definitions/Timestamp" },
+        "cursorThrottleMs": { "type": "number" },
+        "sessionKind": { "type": "string", "enum": ["review"], "description": "Present only on a review session created by the drafter (markups.session-new)." },
+        "packageHash": { "$ref": "#/definitions/PackageHash" },
+        "sheetMap": {
+          "type": "object",
+          "deprecated": true,
+          "description": "DEPRECATED (2026-09-25, organizing model v3): sheet number -> 1-BASED page. 1-based is what every writer has always stored: pdf-cli's markups.session-new and legacy markups.ingest write the package's 1-based page (pages.json / titleblock.json / marks.json page), and review.ingest writes the same values as sheetPages (1-based position in set; for a one-document session that is the document's page). The '0-based' wording this field carried from 2026-09-23 to 2026-09-25 was wrong, and the first review.ingest build wrote 0-based values (never deployed). No released SPA reads the values (FirestoreService passes the map through untouched). New readers use set / sheetPages.",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        },
+        "sheetPages": {
+          "type": "object",
+          "description": "Service-only (review.ingest): sheet number -> 1-based position in the Set index (set). Present when the set's pages carry sheet_number.",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        },
+        "set": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/definitions/SetEntry" },
+          "description": "Service-only (review.ingest / document.upsert): THE SET INDEX -- the combined view ACROSS ALL DOCUMENTS of the project, in 1-based display order (entry i is display page i + 1). Each entry names a page by its stable page_id and the document revision it comes from (page = its page in that revision's PDF). An ingest of document d replaces d's block in place; an upsert updates d's surviving entries in place, drops removed ones and appends new ones after d's block (a new document: at the end); recombination is a rewrite of this list. Absent on a session never ingested through the service."
+        },
+        "documentId": { "type": "string", "description": "The default document of a review session (pdf-cli session-new). A project may hold many documents (document control): readers open the first Set document, else this one." },
+        "reviewCore": { "type": "integer", "description": "Drafter-only (wiki spec--review-revamp R5): the project's review core; 2 = the request store (review-request-contract.json gate). Absent on a v8 project." },
+        "requestNumber": { "type": "integer", "minimum": 0, "description": "Service-only (U2, review-request-contract.json number.counter): the highest request number assigned so far on a reviewCore 2 project; request.dispatch takes 1 + it and writes it back in the same transaction." }
+      }
+    },
+    "Document": {
+      "$comment": "projects/{projectId}/documents/{documentId}",
+      "type": "object",
+      "required": ["name", "storagePath", "pageCount", "fileSizeBytes", "uploadUserId", "createdAt"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "downloadURL": { "type": "string" },
+        "pageCount": { "type": "integer", "minimum": 0 },
+        "fileSizeBytes": { "type": "integer", "minimum": 0 },
+        "uploadUserId": { "type": "string" },
+        "createdAt": { "$ref": "#/definitions/Timestamp" },
+        "updatedAt": { "$ref": "#/definitions/Timestamp" },
+        "packageHash": { "$ref": "#/definitions/PackageHash" },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "THE package revision counter: 1 at session-new, +1 per markups.ingest. The SPA subscribes to it to swap the sheet live. With revisions it equals the current revision's n (kept in sync for old readers)."
+        },
+        "revision": {
+          "$ref": "#/definitions/RevisionId",
+          "description": "Service-only (review.ingest / document.upsert, compare-and-set): the id of the CURRENT immutable revision (documents/{d}/revisions/{revision}). Absent on a document never ingested through the service. storagePath/packageHash/version mirror that revision (document.upsert: its assembled PDF)."
+        },
+        "source": { "$ref": "#/definitions/DocumentSource", "description": "Service-only (document.upsert): where the document comes from -- a bim-cli driver + its source document id / file, or driver 'none' (a sketch document)." },
+        "packageVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "deprecated": true,
+          "description": "DEPRECATED (2026-09-23): a second counter for the same job as `version`, never consumed. pdf-cli no longer writes it; readers must use `version`. Kept here only so documents written before the change still validate."
+        }
+      }
+    },
+    "Revision": {
+      "$comment": "projects/{projectId}/documents/{documentId}/revisions/{revisionId} -- IMMUTABLE (organizing model v3, decision 2): written once by review.ingest or document.upsert inside its compare-and-set transaction, never updated or deleted; no client write (rules). revisionId = 'r' + n. A review.ingest revision is one whole package (packageHash + storagePath); a document.upsert revision (document control, wiki spec--document-control) is a list of CONTENT-ADDRESSED pages (page_hash, sidecar_hash) + docdata + diff, and carries packageHash + storagePath only when it has an assembled PDF (phase-1 compat).",
+      "type": "object",
+      "required": ["n", "pages", "parent", "op_id", "createdAt", "createdBy"],
+      "anyOf": [{ "required": ["packageHash", "storagePath"] }, { "required": ["docdata", "diff", "op_hash"] }],
+      "additionalProperties": false,
+      "properties": {
+        "n": { "type": "integer", "minimum": 1, "description": "1-based revision number of the document; continues the document's version counter." },
+        "packageHash": { "$ref": "#/definitions/PackageHash" },
+        "storagePath": { "type": "string", "minLength": 1, "description": "The storage object of THIS revision. Never overwritten: every revision is a new object." },
+        "pages": { "type": "array", "minItems": 1, "maxItems": 1000, "items": { "$ref": "#/definitions/RevisionPage" }, "description": "Every page of this revision, in page order (page 1..N)." },
+        "parent": { "oneOf": [{ "$ref": "#/definitions/RevisionId" }, { "type": "null" }], "description": "The revision this one was ingested on (the compare-and-set base); null for the document's first revision." },
+        "source": { "$ref": "#/definitions/DocumentSource" },
+        "docdata": { "type": "object", "maxProperties": 64, "additionalProperties": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "description": "document.upsert: source document id -> sha256 hex of its document data (projects/{p}/docdata/{h}.json: elements, levels, schedules -- model-scoped, never copied into page slices)." },
+        "diff": {
+          "type": "object",
+          "required": ["added", "changed", "unchanged", "removed"],
+          "additionalProperties": false,
+          "properties": {
+            "added": { "type": "array", "items": { "$ref": "#/definitions/PageId" } },
+            "changed": { "type": "array", "items": { "$ref": "#/definitions/PageId" }, "description": "Same page_id, another page_hash (ANY canonical byte change)." },
+            "unchanged": { "type": "array", "items": { "$ref": "#/definitions/PageId" } },
+            "removed": { "type": "array", "items": { "$ref": "#/definitions/PageId" } }
+          },
+          "description": "document.upsert: page_ids against the parent revision."
+        },
+        "assembled": {
+          "type": "object",
+          "required": ["path", "packageHash"],
+          "additionalProperties": false,
+          "properties": { "path": { "type": "string", "minLength": 1 }, "packageHash": { "$ref": "#/definitions/PackageHash" } },
+          "description": "document.upsert, PHASE-1 COMPAT: the whole assembled PDF (projects/{p}/assembled/{documentId}-r{n}-{sha8}.pdf) the single-PDF viewer opens; dropped when the viewer assembles pages."
+        },
+        "mode": { "type": "string", "enum": ["replace", "patch"], "description": "document.upsert: how the page list was sent." },
+        "op_hash": { "$ref": "#/definitions/PackageHash", "description": "document.upsert: sha256 of the canonical call minus op_id -- a replay with another call under the same op_id is refused." },
+        "op_id": { "$ref": "#/definitions/TraceId", "description": "The ingest's / upsert's idempotency key: a repeated call with this op_id is replayed." },
+        "createdAt": { "$ref": "#/definitions/Timestamp" },
+        "createdBy": {
+          "type": "object",
+          "required": ["id", "type", "actor"],
+          "additionalProperties": false,
+          "properties": { "id": { "type": "string" }, "type": { "type": "string", "enum": ["human", "agent"] }, "actor": { "type": "string" } }
+        }
+      }
+    },
+    "RevisionId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+    "DocumentSource": {
+      "type": "object",
+      "required": ["driver"],
+      "additionalProperties": false,
+      "properties": {
+        "driver": { "type": "string", "minLength": 1, "description": "The bim-cli driver that rendered it (pages.json source.driver), or 'none' for a sketch document." },
+        "document_id": { "type": "string", "minLength": 1, "description": "The stable source document id (pages.json source.document_id)." },
+        "file": { "type": "string", "minLength": 1, "description": "The source file, when known." }
+      }
+    },
+    "PageId": { "type": "string", "minLength": 3, "maxLength": 256, "description": "Stable page identity (bim-pdf 1.12 pages.json page_id = source document_id + ':' + native_key). Survives page reordering and recombination; the page INDEX is display-only." },
+    "RevisionPage": {
+      "type": "object",
+      "required": ["page", "page_id"],
+      "additionalProperties": false,
+      "properties": {
+        "page": { "type": "integer", "minimum": 1, "description": "1-based page of the revision's PDF (contiguous 1..N)." },
+        "page_id": { "$ref": "#/definitions/PageId" },
+        "page_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "document.upsert: sha256 hex of the CANONICAL single-page PDF at projects/{p}/pages/{page_hash}.pdf -- the page's identity (any byte change = changed)." },
+        "sidecar_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "document.upsert: sha256 hex of the page slice at projects/{p}/sidecars/{sidecar_hash}.json." },
+        "label": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "sheet_number": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "geometry": {
+          "type": "object",
+          "required": ["media_box"],
+          "additionalProperties": false,
+          "properties": {
+            "media_box": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" } },
+            "crop_box": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number" } },
+            "rotate": { "type": "integer", "enum": [0, 90, 180, 270] }
+          },
+          "description": "pages.json geometry. A change between two revisions parks the page's markups (page geometry changed)."
+        }
+      }
+    },
+    "SetEntry": {
+      "type": "object",
+      "required": ["page_id", "documentId", "revision", "page"],
+      "additionalProperties": false,
+      "properties": {
+        "page_id": { "$ref": "#/definitions/PageId" },
+        "documentId": { "type": "string", "minLength": 1 },
+        "revision": { "$ref": "#/definitions/RevisionId" },
+        "page": { "type": "integer", "minimum": 1, "description": "1-based page of that revision's PDF." },
+        "sheet_number": { "type": "string", "minLength": 1, "maxLength": 64 }
+      }
+    },
+    "DrawnOn": {
+      "type": "object",
+      "required": ["documentId", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "documentId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$" },
+        "revision": { "$ref": "#/definitions/RevisionId" }
+      },
+      "description": "The document revision a markup / stroke / intent was drawn on (organizing model v3, decision 1)."
+    },
+    "Permission": {
+      "$comment": "projects/{projectId}/permissions/{userId}",
+      "type": "object",
+      "required": ["projectId", "userId", "email", "role", "scope", "status", "invitedBy", "invitedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "projectId": { "type": "string" },
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "editor", "viewer"] },
+        "scope": { "type": "string", "enum": ["project", "document"] },
+        "status": { "type": "string", "enum": ["pending", "active"] },
+        "documentId": { "type": "string" },
+        "invitedBy": { "type": "string" },
+        "invitedAt": { "$ref": "#/definitions/Timestamp" },
+        "activatedAt": { "$ref": "#/definitions/Timestamp", "description": "Set by the activatePendingInvites function." }
+      }
+    },
+    "PairingCode": {
+      "$comment": "projects/{projectId}/pairingCodes/{sha256hex(code)} -- Admin SDK only; no client may read or write.",
+      "type": "object",
+      "required": ["role", "expiresAt", "attempts"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "type": "string", "enum": ["admin", "editor"] },
+        "expiresAt": { "$ref": "#/definitions/Timestamp" },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "createdAt": { "$ref": "#/definitions/Timestamp" },
+        "redeemedBy": { "type": "string" },
+        "redeemedAt": { "$ref": "#/definitions/Timestamp" }
+      }
+    },
+    "ReviewerEvent": {
+      "$comment": "projects/{projectId}/reviewer_events/{eventId} -- review contract v7 reviewerEvents (replaces the v6 signals subcollection and the v5 Reject note); v8 adds restore/reapply (operations, item 1): append-only, created by an active admin/editor (by == the caller uid, at == request.time, closed shape, per-type required fields), read and deleted by the drafter (Admin SDK) after consuming. No client reads, updates or deletes one.",
+      "type": "object",
+      "required": ["type", "by", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["note", "dismiss", "select_alternative", "dispatch", "restore", "reapply", "reading.correct", "release"], "description": "note = the text of a Reject (meant something else); dismiss = drop the intent trace_id; select_alternative = the reading picked in an Accept (index); dispatch = the reviewer names exactly what the drafter should read now (scope + markup_ids/page); restore = restore the operation op_id (contract v8); reapply = reapply the operation op_id, optionally a different alternative (index); release (2026-10-06, additive) = the reviewer released the dispatched markups markup_ids (their lock cleared; the drafter drops an unanswered intent over them); reading.correct (2026-10-01, additive) = the reviewer corrects the drafter's READING of the intent trace_id (text = what the ink actually says; the drafter cancels the draft and re-drafts from it). Enum equals the keys of contract reviewerEvents.types (tested)." },
+        "by": { "type": "string", "minLength": 1, "description": "The reviewer's uid (rules: == request.auth.uid)." },
+        "at": { "$ref": "#/definitions/Timestamp" },
+        "trace_id": { "$ref": "#/definitions/TraceId", "description": "The intent the gesture is about (required for note, dismiss, select_alternative, reading.correct)." },
+        "text": { "type": "string", "minLength": 1, "maxLength": 280, "description": "note: the reviewer text; reading.correct: the corrected reading. maxLength equals reviewerEvents.types.note.maxLength and reviewerEvents.types['reading.correct'].maxLength (tested)." },
+        "index": { "type": "integer", "minimum": 0, "maximum": 2, "description": "select_alternative: the index into review.alternatives the Accept picked (maximum = select.maxAlternatives - 1, tested). reapply: OPTIONAL -- run a different alternative of the same proposal." },
+        "scope": { "type": "string", "enum": ["selection", "page", "document"], "description": "dispatch: what to read -- selection (exactly markup_ids), page (exactly that page's undispatched strokes), document (every undispatched stroke). Enum equals reviewerEvents.types.dispatch.scopeRequires keys (tested)." },
+        "markup_ids": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "type": "string", "minLength": 1 }, "description": "dispatch scope selection: the reviewer's exact selected markup ids (the SPA filters to their own open/grounded/rejected/needs-human markups; the drafter re-checks)." },
+        "page": { "type": "integer", "minimum": 0, "description": "dispatch scope page: the page (markups' pageNumber) to dispatch." },
+        "op_id": { "$ref": "#/definitions/OpId", "description": "restore / reapply (contract v8): the operation (projects/{p}/operations/{op_id}) the reviewer gesture is about." }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "note" } } }, "then": { "required": ["trace_id", "text"] } },
+        { "if": { "properties": { "type": { "const": "dismiss" } } }, "then": { "required": ["trace_id"] } },
+        { "if": { "properties": { "type": { "const": "select_alternative" } } }, "then": { "required": ["trace_id", "index"] } },
+        { "if": { "properties": { "type": { "const": "dispatch" } } }, "then": { "required": ["scope"] } },
+        { "if": { "properties": { "type": { "const": "dispatch" }, "scope": { "const": "selection" } } }, "then": { "required": ["markup_ids"] } },
+        { "if": { "properties": { "type": { "const": "dispatch" }, "scope": { "const": "page" } } }, "then": { "required": ["page"] } },
+        { "if": { "properties": { "type": { "const": "restore" } } }, "then": { "required": ["op_id"] } },
+        { "if": { "properties": { "type": { "const": "reapply" } } }, "then": { "required": ["op_id"] } },
+        { "if": { "properties": { "type": { "const": "reading.correct" } } }, "then": { "required": ["trace_id", "text"] } }, { "if": { "properties": { "type": { "const": "release" } } }, "then": { "required": ["markup_ids"] } }
+      ]
+    },
+    "Operation": {
+      "$comment": "projects/{projectId}/operations/{opId} -- contract v8 (item 1): one record per operation (apply/restore/reapply/render) the review loop makes to a source document. Server/drafter-written (Admin SDK / bim-cli service principal), never client-written; project members read (firestore.rules `match /operations/{opId}`, hand-written like `/intents/{traceId}` -- a literal collection path is not generator-driven).",
+      "type": "object",
+      "required": ["op_id", "kind", "target", "status", "status_history", "created_at", "author"],
+      "additionalProperties": false,
+      "properties": {
+        "op_id": { "$ref": "#/definitions/OpId" },
+        "kind": { "type": "string", "enum": ["apply", "restore", "reapply", "render"] },
+        "trace_id": { "$ref": "#/definitions/TraceId" },
+        "target": {
+          "type": "object",
+          "required": ["driver", "document_id"],
+          "additionalProperties": false,
+          "properties": {
+            "driver": { "type": "string", "minLength": 1 },
+            "document_id": { "type": "string", "minLength": 1 }
+          }
+        },
+        "request": { "$ref": "#/definitions/MarkupRequest", "description": "The forward request that ran (apply), or that this op's inverse re-runs (restore/reapply)." },
+        "restore_plan": { "type": "object", "description": "The inverse plan verified at propose (contract v8 item 4: strategy verb | preimage | script | none)." },
+        "preimage_ref": { "type": "string", "description": "Content-addressed pre-image (projects/{p}/opdata/{sha256}.json)." },
+        "result": {},
+        "revision_before": { "$ref": "#/definitions/RevisionId" },
+        "revision_after": { "$ref": "#/definitions/RevisionId" },
+        "author": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "accepted_by": { "type": "string" },
+            "requested_by": { "type": "string" },
+            "applied_by": { "type": "string", "enum": ["drafter", "cli"] }
+          }
+        },
+        "status": { "type": "string" },
+        "status_history": { "type": "array", "items": { "type": "object" } },
+        "of_op": { "$ref": "#/definitions/OpId", "description": "restore / reapply only: the operation being restored or reapplied." },
+        "created_at": { "$ref": "#/definitions/Timestamp" },
+        "error": {}
+      }
+    },
+    "Markup": {
+      "$comment": "projects/{projectId}/documents/{documentId}/markups/{markupId}",
+      "type": "object",
+      "required": ["projectId", "documentId", "pageNumber", "type", "subject", "points", "style", "createdByUserId", "createdAt", "updatedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "projectId": { "type": "string" },
+        "documentId": { "type": "string" },
+        "pageNumber": { "type": "number" },
+        "type": { "type": "string", "enum": ["line", "polyline", "polygon", "rectangle", "ellipse", "freehand", "arrow", "highlight", "cloud", "count", "callout", "text", "stamp", "group", "dimension", "snapshot", "move", "image", "photo-pin"] },
+        "subject": { "type": "string" },
+        "points": { "type": "array", "items": { "$ref": "#/definitions/Point" } },
+        "style": { "$ref": "#/definitions/MarkupStyle" },
+        "createdByUserId": { "type": "string" },
+        "createdAt": { "$ref": "#/definitions/Timestamp" },
+        "updatedAt": { "$ref": "#/definitions/Timestamp" },
+        "groupId": { "type": "string" },
+        "layer_id": { "type": "string" },
+        "visible": { "type": "boolean" },
+        "printable": { "type": "boolean" },
+        "locked": { "type": "boolean" },
+        "zIndex": { "type": "number" },
+        "rotation": { "type": "number" },
+        "pressures": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 }, "description": "freehand only: pen pressure per point, parallel to points. Optional (absent on mouse strokes and pre-2026-09-24 ink)." },
+        "linkedElementIds": { "type": "array", "items": { "type": "string" } },
+        "attachedMarkupId": { "type": "string" },
+        "move": { "$ref": "#/definitions/MarkupMove", "description": "type move only (2026-10-08, additive): the element move this markup asks for. Required on a move markup, absent on every other type." },
+        "media": { "$ref": "#/definitions/Media", "description": "2026-10-14 (image markup, additive): the markup's photos -- a map keyed by a client-generated item id, so every edit is a dotted-path write (media.<id>) and concurrent adds merge. Any type may carry up to 24; an image holds exactly 1 and a photo-pin 1..24 (both require it)." },
+        "seq": { "type": "integer", "minimum": 1, "description": "photo-pin only: the in-app label hint (P12); final numbers are assigned at export." },
+        "heading": { "type": "number", "minimum": 0, "exclusiveMaximum": 360, "description": "photo-pin only: the view direction on the page in degrees, [0, 360)." },
+        "room": { "$ref": "#/definitions/MarkupRoom", "description": "photo-pin only: the room the pin was placed in, a snapshot taken at link time." },
+        "text": { "type": "string", "description": "callout and text markups." },
+        "stampType": { "type": "string", "enum": ["APPROVED", "REVIEWED", "FOR REVIEW", "VOID"] },
+        "stampDate": { "type": "string" },
+        "stampInitials": { "type": "string" },
+        "childIds": { "type": "array", "items": { "type": "string" } },
+        "captureHash": { "type": "string" },
+        "page_id": { "$ref": "#/definitions/PageId", "description": "The stable identity of the page the markup is on (organizing model v3). review.ingest re-anchors by it: pageNumber follows the page; a removed page or a changed page geometry parks the markup. Absent = a markup from before revisions (pageNumber only, left as is)." },
+        "drawn_on": { "$ref": "#/definitions/DrawnOn" },
+        "rev": { "type": "integer", "minimum": 1, "description": "Absent on pre-1.11 markups (read as 1)." },
+        "status": { "$ref": "#/definitions/ReviewStatus" },
+        "status_history": { "type": "array", "items": { "$ref": "#/definitions/StatusHistoryEntry" } },
+        "in_reply_to": { "type": "string", "description": "Drafter-only: the proposal reply callout points at the human's markup." },
+        "delta": { "$ref": "#/definitions/MarkupDelta", "deprecated": true, "description": "LEGACY (contract v2-v6), read-only: a pre-v7 proposal. pdf-cli >= 0.7.0 never writes it; the drafter upgrades the document to request + review on its next write (markups.upgrade does a whole session). Readers use core deltaView() / reviewRecordOf()." },
+        "needs_human_reason": { "type": "string", "description": "Drafter-only: why the markup moved to needs-human." },
+        "dispatch_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "2026-10-06 (contract dispatchLock): the dispatch event id that grouped and LOCKED this markup; cleared by Reopen / Release. While set, a client write touches only status fields + dispatch_id / released; no delete." },
+        "released": { "type": "boolean", "description": "2026-10-06 (contract dispatchLock): a resolved / restored markup the reviewer Released -- hidden with its request (sheet and rail); the request record keeps it." },
+        "request_id": { "type": ["string", "null"], "maxLength": 128, "description": "Service-only (wiki spec--review-revamp R5, review-request-contract.json inkField): the request (trace_id) this ink belongs to on a reviewCore 2 project; null once a Release before Accept freed it. Never written by a client." },
+        "proposal_markup_id": { "type": "string", "description": "Drafter-only (markups.propose, on EVERY addressed markup): id of the proposal reply callout. May point at a deleted markup after a Reject or a withdraw." },
+        "addresses": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Drafter-only (markups.propose, on the proposal REPLY): the markup ids the proposal covers, the primary (grounded, carrying the delta and the apply journal) first. The reply and every addressed markup share one group (groupId -> a type group markup)." },
+        "proposal_expires_at": { "$ref": "#/definitions/Timestamp", "description": "Drafter-only (markups.propose, on the original and the reply): after this a proposed markup is swept to needs-human." },
+        "resolved_package_hash": { "$ref": "#/definitions/PackageHash", "description": "Drafter-only (markups.ingest): the package hash the markup was resolved (or failed to re-anchor) against." },
+        "apply": { "$ref": "#/definitions/ApplyJournal" },
+        "sheet_anchor": { "$ref": "#/definitions/SheetAnchor", "description": "Drafter-only (markups.ground --anchor sheet:..., contract v4): the placement region a CREATION intent is anchored to when no BIM element lies under it (linkedElementIds stays empty). markups.ingest resolves the set while the new package still has this sheet." },
+        "agent_status": { "$ref": "#/definitions/AgentStatus" },
+        "contractVersion": { "type": "integer", "minimum": 7, "description": "Review contract version of this document (7). Written by pdf-cli >= 0.7.0 on every markup of a proposal set (members, reply, group). Absent = a client-created markup or a pre-v7 document (read the legacy delta)." },
+        "trace_id": { "$ref": "#/definitions/TraceId", "description": "Contract v7 ONE IDENTITY, drafter-only: the intent (reviewer gesture) this markup belongs to -- on every member, the reply and the group of a proposal set, equal to review.trace_id. Required at contractVersion >= 7 in the proposed band (proposed/accepted/applying)." },
+        "request": { "$ref": "#/definitions/MarkupRequest", "description": "Contract v7, drafter-only (primary + reply): the executable half of the proposal." },
+        "review": { "$ref": "#/definitions/MarkupReview", "description": "Contract v7, drafter-only except review.selected (the Accept): the record half of the proposal." }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "enum": ["callout", "text"] } } }, "then": { "required": ["text"] } },
+        { "if": { "properties": { "type": { "const": "stamp" } } }, "then": { "required": ["stampType", "stampDate", "stampInitials"] } },
+        { "if": { "properties": { "type": { "const": "group" } } }, "then": { "required": ["childIds"] } },
+        { "if": { "properties": { "type": { "const": "move" } } }, "then": { "required": ["move", "linkedElementIds"] } },
+        { "if": { "required": ["move"] }, "then": { "properties": { "type": { "const": "move" } } } },
+        { "if": { "properties": { "type": { "const": "image" } } }, "then": { "required": ["media"], "properties": { "media": { "minProperties": 1, "maxProperties": 1 } } } },
+        { "if": { "properties": { "type": { "const": "photo-pin" } } }, "then": { "required": ["media"], "properties": { "media": { "minProperties": 1 } } } },
+        { "$comment": "seq / heading / room exist on a photo-pin only.", "if": { "anyOf": [{ "required": ["seq"] }, { "required": ["heading"] }, { "required": ["room"] }] }, "then": { "properties": { "type": { "const": "photo-pin" } } } },
+        { "$comment": "v7: a contractVersion >= 7 markup in the proposed band carries trace_id (enum equals the contract locked statuses, tested).", "if": { "required": ["contractVersion", "status"], "properties": { "contractVersion": { "minimum": 7 }, "status": { "enum": ["proposed", "accepted", "applying"] } } }, "then": { "required": ["trace_id"] } },
+        { "$comment": "v7: a contractVersion >= 7 markup never carries the legacy delta; request and review come together.", "if": { "required": ["contractVersion"], "properties": { "contractVersion": { "minimum": 7 } } }, "then": { "not": { "required": ["delta"] } } },
+        { "if": { "required": ["request"] }, "then": { "required": ["review"] } },
+        { "if": { "required": ["review"] }, "then": { "required": ["request"] } }
+      ]
+    },
+    "MarkupMove": {
+      "type": "object",
+      "description": "2026-10-08 (element move, MOVE-COMMON): a request to move ONE model element in the plane of the view it is drawn in. points = [from, to] (canvas space, like an arrow: the element centre before and after); linkedElementIds = [element_id]. The drafter maps delta_pt to a model delta by the view's own basis (no drafting step).",
+      "required": ["element_id", "page_vp", "view_id", "delta_pt"],
+      "additionalProperties": false,
+      "properties": {
+        "element_id": { "type": "string", "minLength": 1, "maxLength": 128, "description": "The element (elements.json id) to move; equals linkedElementIds[0]." },
+        "page_vp": { "type": "integer", "minimum": 0, "description": "Index into scales.json pages[page].viewports: the viewport the element is drawn in." },
+        "view_id": { "type": "string", "minLength": 1, "maxLength": 256, "description": "That viewport's view_id (the view's UniqueId)." },
+        "delta_pt": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" }, "description": "[dx, dy] in PDF points, RAW page user space, Y-UP (the marks.json bbox convention; /Rotate undone, MediaBox origin irrelevant to a delta)." },
+        "snap": {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "type": "string", "minLength": 1, "maxLength": 32, "description": "The osnap kind the release landed on (endpoint, midpoint, intersection, center, nearest)." },
+            "to": { "type": "string", "minLength": 1, "maxLength": 128, "description": "The element id snapped to, when the target was an element (a wall line); absent for page content." }
+          }
+        },
+        "constraint": { "type": "string", "enum": ["free", "axis", "host"], "description": "free = any direction; axis = locked horizontal / vertical; host = slid along its host wall (a door / window)." }
+      }
+    },
+    "Media": {
+      "type": "object",
+      "description": "2026-10-14 (image markup): a markup's photos, keyed by item id (client-generated, stable). At most 24 items.",
+      "maxProperties": 24,
+      "propertyNames": { "pattern": "^[A-Za-z0-9_-]{8,24}$" },
+      "additionalProperties": { "$ref": "#/definitions/MediaItem" }
+    },
+    "MediaItem": {
+      "type": "object",
+      "description": "One photo: a reference to a content-addressed asset (projects/{p}/assets/{asset}.jpg once promoted) and its metadata -- never the bytes.",
+      "required": ["asset", "mime", "w", "h", "order", "addedBy", "addedAt", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "asset": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 (lowercase hex) of the stored bytes." },
+        "mime": { "type": "string", "enum": ["image/jpeg", "image/png"], "description": "v1 writes image/jpeg only; png is reserved." },
+        "w": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "h": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "order": { "type": "number", "description": "Display order; the cover is the lowest. Fractional inserts allowed." },
+        "caption": { "type": "string", "maxLength": 500 },
+        "capturedAt": { "type": "number", "description": "ms epoch, only from a meaningful file date; absent -> addedAt." },
+        "addedBy": { "type": "string" },
+        "addedAt": { "type": "number", "description": "ms epoch." },
+        "source": {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "type": "string", "enum": ["paste", "clipboard", "drop", "file", "camera", "pdf-import"] },
+            "url": { "type": "string", "maxLength": 2048, "pattern": "^[Hh][Tt][Tt][Pp][Ss]?://", "description": "The http(s) URL the copy carried (image src or link href)." }
+          }
+        }
+      }
+    },
+    "MarkupRoom": {
+      "type": "object",
+      "description": "photo-pin only: the room under the pin, a snapshot taken at link time (auto = resolved from the package; typed = typed or picked by the user).",
+      "required": ["from"],
+      "additionalProperties": false,
+      "properties": {
+        "elementId": { "type": "string", "maxLength": 128 },
+        "number": { "type": "string", "maxLength": 40 },
+        "name": { "type": "string", "maxLength": 120 },
+        "from": { "type": "string", "enum": ["auto", "typed"] }
+      }
+    },
+    "AgentStatus": {
+      "type": "object",
+      "description": "Drafter-only LIVE PROGRESS (the drafter via pdf-cli, Admin SDK): written on every markup of an intent and overwritten per stage; cleared, or left at done / failed. Clients may never create or change it (firestore.rules createsNoDrafterFields / touchesNoDrafterFields). Display only: nothing in the review loop reads it as state.",
+      "required": ["stage", "text", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "stage": { "type": "string", "enum": ["reading", "read", "drafting", "verifying", "proposing", "applying", "applied", "exporting", "ingesting", "done", "failed"], "description": "applied (2026-10-01, additive): the apply returned and the loop is now exporting + ingesting the sheet (the SPA shows Applied -- updating sheet... until done / failed)." },
+        "text": { "type": "string", "maxLength": 200, "description": "What the drafter is doing, in the reviewer's words (e.g. Read as 'move door')." },
+        "at": { "type": "string", "minLength": 1, "description": "ISO 8601 datetime string of this stage's write (same encoding as StatusHistoryEntry.at)." },
+        "trace_id": { "$ref": "#/definitions/TraceId" }
+      }
+    },
+    "SheetAnchor": {
+      "type": "object",
+      "description": "A declared placement on a sheet: the sheet number (a key of the project sheetMap) and a region in SHEET FEET measured from the sheet's lower-left corner (x right, y up); x_ft/y_ft is the region's TOP-LEFT corner (where Revit places a schedule's origin), w_ft extends right and h_ft extends DOWN from it. The region is optional: a bare sheet anchor carries only `sheet`.",
+      "required": ["sheet"],
+      "additionalProperties": false,
+      "properties": {
+        "sheet": { "type": "string", "minLength": 1 },
+        "x_ft": { "type": "number" },
+        "y_ft": { "type": "number" },
+        "w_ft": { "type": "number", "minimum": 0 },
+        "h_ft": { "type": "number", "minimum": 0 }
+      }
+    },
+    "Timestamp": {
+      "type": "object",
+      "description": "A Firestore Timestamp, in its JSON form.",
+      "required": ["seconds", "nanoseconds"],
+      "properties": {
+        "seconds": { "type": "integer" },
+        "nanoseconds": { "type": "integer", "minimum": 0, "maximum": 999999999 }
+      }
+    },
+    "PackageHash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "Point": {
+      "type": "object",
+      "required": ["x", "y"],
+      "properties": { "x": { "type": "number" }, "y": { "type": "number" } }
+    },
+    "MarkupStyle": {
+      "type": "object",
+      "required": ["color", "lineWidth"],
+      "properties": {
+        "color": { "type": "string" },
+        "lineWidth": { "type": "number" },
+        "fill": { "type": "string" },
+        "opacity": { "type": "number" },
+        "lineStyle": { "type": "string", "enum": ["solid", "dashed", "dotted"] },
+        "textSize": { "type": "string" },
+        "textFormatting": { "type": "object" },
+        "fontFamily": { "type": "string" },
+        "fontSize": { "type": "number" },
+        "countSymbol": { "type": "string" }
+      }
+    },
+    "ReviewStatus": {
+      "type": "string",
+      "description": "Must equal the statuses of packages/core/src/markups/review-contract.json (tested).",
+      "enum": ["open", "grounded", "proposed", "accepted", "rejected", "applying", "resolved", "restored", "needs-human"]
+    },
+    "ReviewAuthor": {
+      "type": "object",
+      "required": ["id", "display", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "display": { "type": "string" },
+        "type": { "type": "string", "enum": ["human", "agent"], "description": "Fixed per actor by review-contract.json actors[].byType." }
+      }
+    },
+    "StatusHistoryEntry": {
+      "type": "object",
+      "required": ["status", "by", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "status": { "$ref": "#/definitions/ReviewStatus" },
+        "by": { "$ref": "#/definitions/ReviewAuthor" },
+        "at": { "type": "string", "format": "date-time", "description": "ISO 8601 string (same encoding as annotations.json), NOT a Timestamp." },
+        "event": { "type": "string", "enum": ["withdrawn", "apply-refused", "anchor-declared", "executed-resolved"], "description": "History-only marker, not a status: `executed-resolved` (contract v6 executedResolve) on the drafter's resolved entry when markups.resolve --executed resolved a handed-back set whose delta already ran -- its reason is the recorded result JSON; `withdrawn` on the drafter's proposed -> open entry (older history: the removed pdf-cli markups.withdraw; contract requiresReason: its reason is required); `apply-refused` on the drafter's needs-human entry when markups.apply refused an accepted set -- its reason is the refusal; `anchor-declared` (contract v4) on the drafter's grounded entry when markups.ground --anchor declared the anchor -- its reason is the anchor spec (element:<id> or sheet:<number>[@x,y,w,h])." },
+        "reason": { "type": "string", "description": "Free text recorded with the entry (the drafter's withdraw or apply-refused reason)." },
+        "note": { "type": "string", "maxLength": 280, "deprecated": true, "description": "LEGACY (contract v5-v6), read-only: the note of a human Reject on its rejected entry. Contract v7 carries it as a reviewer_events note (the rules deny a new entry with a note); old entries keep it." }
+      }
+    },
+    "MarkupDelta": {
+      "type": "object",
+      "required": ["driver", "verb", "args", "base_rev", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "driver": { "type": "string" },
+        "verb": { "type": "string" },
+        "args": { "type": "object" },
+        "preimage": { "type": "object" },
+        "base_rev": { "type": "integer", "minimum": 1, "description": "The PRIMARY markup's rev when the proposal became visible: after all of markups.propose's writes (pdf-cli >= 0.6.0). Informational since pdf-cli 0.6.3: markups.apply checks invariants (status_history, delta.hash, package), not rev arithmetic. Only a LEGACY delta without `hash` is still held to rev == base_rev + 1 (base_rev + 2 when base_revs is absent too)." },
+        "base_revs": { "type": "object", "description": "Every addressed markup's rev when the proposal became visible (primary included), keyed by markup id (pdf-cli >= 0.6.0). Informational since pdf-cli 0.6.3 (see base_rev); a legacy delta without `hash` still requires each member at exactly +1.", "additionalProperties": { "type": "integer", "minimum": 1 } },
+        "base_package_hash": { "$ref": "#/definitions/PackageHash" },
+        "summary": { "type": "string" },
+        "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "pdf-cli >= 0.6.3: sha256 of the canonical JSON (sorted keys) of this delta without `hash`, written by markups.propose. markups.apply refuses (delta-changed) when the stored delta no longer hashes to it. Contract v5: the hash covers `alternatives` and EXCLUDES `selected`." },
+        "alternatives": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "$ref": "#/definitions/DeltaAlternative" }, "description": "Contract v5 READING ALTERNATIVES, drafter-only (markups.propose, on the primary's delta and the reply's copy): the candidate readings of an uncertain intent, best first; alternatives[0] equals the top-level driver/verb/args. maxItems equals humanFieldWrites.selection.maxAlternatives (tested)." },
+        "selected": { "type": "integer", "minimum": 0, "description": "Contract v5: the ONE client write into a drafter field -- an index into `alternatives`, written by the human Accept (proposed -> accepted) on the PRIMARY only, as the field path delta.selected in the same write (rules: 0 <= selected < alternatives.size()). markups.apply runs alternatives[selected] (absent = 0). Excluded from `hash`." },
+        "revision_of": { "type": "string", "minLength": 1, "description": "Contract v6 (deltaTrace.revisionOf), drafter-only: the id of the proposal reply this proposal REVISES -- the drafter withdrew that proposal (proposed -> open, event withdrawn) because a late stroke joined the intent, and re-proposed with it. Covered by `hash`. The SPA shows an updated marker and a previous-version disclosure." },
+        "revision": { "type": "integer", "minimum": 1, "description": "Contract v6 (deltaTrace.revision), drafter-only: which revision of the intent this proposal is (1 = first; absent reads as 1). Covered by `hash`." },
+        "previous_summary": { "type": "string", "maxLength": 600, "description": "Contract v6 (deltaTrace.previousSummary), drafter-only: the summary of the proposal this one revises (the withdraw deleted its reply), shown in the SPA previous-version disclosure. Covered by `hash`." },
+        "trace_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{6,64}$", "description": "Contract v6 (deltaTrace.traceId), drafter-only: the INTENT trace id, the same on every revision of one intent. The SPA attaches it to its review telemetry (proposal_card_action, markup_status_changed). pattern equals deltaTrace.traceIdPattern (tested). Covered by `hash`." }
+      },
+      "description": "LEGACY (contract v2-v6), read-only in v7: the pre-split proposal. See MarkupRequest + MarkupReview.",
+      "deprecated": true
+    },
+    "MarkupRequest": {
+      "type": "object",
+      "description": "Contract v7: the EXECUTABLE half of a proposal. markups.apply runs `bim <driver> <verb> --<arg> ...` of it (or of review.alternatives[review.selected].request).",
+      "required": ["driver", "verb", "args"],
+      "additionalProperties": false,
+      "properties": {
+        "driver": { "type": "string", "minLength": 1 },
+        "verb": { "type": "string", "minLength": 1 },
+        "args": { "type": "object" },
+        "preimage": { "type": "object", "description": "Pre-edit state of the touched element(s)." },
+        "base_package_hash": { "$ref": "#/definitions/PackageHash", "description": "The package the request was computed against; apply refuses stale-package when the session package changed (only when base_revisions is absent or the caller cannot read revisions)." },
+        "base_revisions": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 20,
+          "additionalProperties": { "$ref": "#/definitions/RevisionId" },
+          "description": "The revision model: {documentId: revision} of every document the request was computed against. Apply refuses stale-revision when one of THOSE documents has a newer revision; another document's re-export does not stale it."
+        },
+        "script": {
+          "type": "object",
+          "required": ["file", "sha256"],
+          "additionalProperties": false,
+          "properties": {
+            "file": { "type": "string", "minLength": 1 },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          },
+          "description": "A drafted script the request runs (revit exec of a generated .cs): its path and content hash, so the record says exactly what ran."
+        }
+      }
+    },
+    "MarkupReview": {
+      "type": "object",
+      "description": "Contract v7: the RECORD half of a proposal. hash = 'sha256:' + sha256 of the canonical JSON of {request, review minus hash, selected and outcome} (packages/core reviewHash, pdf-cli ReviewHash; conformance/review/vectors.json).",
+      "required": ["hash", "summary", "trace_id"],
+      "additionalProperties": false,
+      "properties": {
+        "hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "summary": { "type": "string", "description": "The change in the reviewer's words (the card and the reply text)." },
+        "base_rev": { "type": "integer", "minimum": 1, "description": "Informational: the primary's rev when the proposal became visible." },
+        "base_revs": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 1 }, "description": "Informational: every addressed markup's rev when the proposal became visible." },
+        "alternatives": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "$ref": "#/definitions/ReviewAlternative" }, "description": "Candidate readings, best first; alternatives[0].request equals {driver, verb, args} of `request`. maxItems equals select.maxAlternatives (tested)." },
+        "selected": { "type": "integer", "minimum": 0, "description": "The ONE client write into a drafter field: the index the human Accept picked (field path review.selected, same write as proposed -> accepted). Not hashed." },
+        "revision": { "type": "integer", "minimum": 1, "description": "Which revision of the intent (absent = 1)." },
+        "revision_of": { "type": "string", "minLength": 1, "description": "The reply id of the proposal this one revises (a re-draft: the reviewer Rejected it with a note and the drafter re-proposed)." },
+        "previous_summary": { "type": "string", "maxLength": 600, "description": "The revised proposal's summary, shown in the previous-version disclosure." },
+        "trace_id": { "$ref": "#/definitions/TraceId" },
+        "outcome": { "$ref": "#/definitions/ReviewOutcome" }
+      }
+    },
+    "ReviewAlternative": {
+      "type": "object",
+      "description": "Contract v7: one candidate reading of a proposal (review.alternatives[i]).",
+      "required": ["summary", "request", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string" },
+        "request": {
+          "type": "object",
+          "required": ["driver", "verb", "args"],
+          "additionalProperties": false,
+          "properties": {
+            "driver": { "type": "string" },
+            "verb": { "type": "string" },
+            "args": { "type": "object" }
+          }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "ReviewOutcome": {
+      "type": "object",
+      "description": "Contract v7, drafter-only, not hashed: what happened when the request ran. applied = a model edit ran; filed = the bug route filed an issue (driver linear); executed = markups.resolve --executed resolved a handed-back set whose request already ran; failed = the call failed (result = the error).",
+      "required": ["kind", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "enum": ["applied", "executed", "filed", "failed"] },
+        "result": { "description": "The driver result (or error) verbatim." },
+        "at": { "type": "string", "format": "date-time", "description": "ISO 8601 UTC with milliseconds." },
+        "op_id": { "$ref": "#/definitions/OpId", "description": "Contract v8: the operation record (projects/{p}/operations/{op_id}) this outcome's apply created." }
+      }
+    },
+    "TraceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{6,64}$",
+      "description": "Contract v7 trace.pattern (tested): the one identity key of a reviewer gesture / intent."
+    },
+    "OpId": {
+      "type": "string",
+      "pattern": "^op-[a-z0-9]{20}$",
+      "description": "Contract v8: projects/{p}/operations/{op_id} id (op- + 20 [a-z0-9])."
+    },
+    "DeltaAlternative": {
+      "type": "object",
+      "description": "Contract v5: one candidate reading of a proposal (MarkupDelta.alternatives).",
+      "required": ["summary", "delta", "confidence"],
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string", "description": "The change in the reviewer's words, shown as one radio row on the review card." },
+        "delta": {
+          "type": "object",
+          "required": ["driver", "verb", "args"],
+          "additionalProperties": false,
+          "properties": {
+            "driver": { "type": "string" },
+            "verb": { "type": "string" },
+            "args": { "type": "object" }
+          }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "ApplyJournal": {
+      "type": "object",
+      "description": "Drafter-only (markups.apply): the idempotency journal of one apply attempt.",
+      "required": ["attempt_id", "phase", "claimed_at"],
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": { "type": "string" },
+        "phase": { "type": "string", "enum": ["claimed", "invoking", "done"] },
+        "claimed_at": { "$ref": "#/definitions/Timestamp" },
+        "invoked_at": { "$ref": "#/definitions/Timestamp" },
+        "finished_at": { "$ref": "#/definitions/Timestamp" },
+        "command": { "type": "array", "items": { "type": "string" } },
+        "ok": { "type": "boolean" },
+        "result": { "description": "The bim result object, verbatim." },
+        "error": { "description": "The bim error envelope, verbatim." }
+      }
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "$comment": "Review CORE contract (2026-09-25; R6-4 2026-10-09: the v1 intent loop -- ink/, intents/, events/, its statuses, moves and apply refusals -- is deleted with the v8 review loop; the review loop is the request store, review-request-contract.json). What it holds: the REVISION and DOCUMENT-CONTROL verbs of the one review service (functions `review`, codebase pdfmarkuptool): review.ingest (`ingest`), document.upsert (`document`), set.update (`set`), the op_id pattern (`trace`) and the actors. Consumers: packages/core reviewCore.ts (loads it), apps/pdfmarkuptool/functions/src/review (vendored byte-identical), pdf-cli internal/reviewcore (vendored byte-identical, go:embed). Conformance vectors: packages/core/conformance/review-core/vectors.json (generate.ts: canonical JSON + the ingest / upsert / set plans).",
+  "coreVersion": 1,
+  "trace": { "field": "trace_id", "pattern": "^[A-Za-z0-9_-]{6,64}$" },
+  "actors": {
+    "admin": { "byType": "human" },
+    "editor": { "byType": "human" },
+    "drafter": { "byType": "agent" }
+  },
+  "ingest": {
+    "$comment": "review.ingest -- append ONE immutable revision of ONE document (organizing model v3, decisions 1-3; wiki spec--package-versioning). Input {documentId, expectedRevision (string | null for a document that has none yet), packageHash, storagePath (a NEW object per revision, never the current one), pages [{page (1-based, contiguous 1..N in order), page_id (unique), sheet_number?, geometry? {media_box, crop_box?, rotate?}}], source? {driver, document_id}, op_id, name?, downloadURL?, fileSizeBytes?}. In ONE transaction: a revision already carrying op_id is replayed (never re-applied); document.revision must equal expectedRevision (else stale-revision); create projects/{p}/documents/{d}/revisions/r{n} {n, packageHash, storagePath, pages, parent, source?, op_id, createdAt, createdBy}; update the document (revision, version = n, packageHash, storagePath, pageCount, updatedAt) and the project (set: the document's block replaced in place by the new pages; packageHash; sheetPages (1-based Set position) + the deprecated sheetMap (the same 1-based values, the base pdf-cli has always written) when pages carry sheet_number; updatedAt). RE-ANCHOR (markups of THIS document carrying page_id; markups without one are left as today): the page_id is in the new revision on another page -> pageNumber follows it; the page_id is gone -> park; its page geometry (media_box, crop_box, rotate) differs from the parent revision's -> park (points are NOT transformed). `markups` names the markup statuses the park uses (the deleted v8 loop's vocabulary, core REVIEW_STATUSES -- test/reviewCoreContract.test.ts checks them against that list): park moves a markup at a `parkFrom` status to `park` with needs_human_reason; a markup already parked by the drafter at `reasonUpdateAt` gets the reason replaced; `terminal` markups are only renumbered; any other status is reported as skipped. Resolving `applying` markups stays with the caller (pdf-cli markups.ingest) for now.",
+    "verb": "review.ingest",
+    "actors": ["drafter"],
+    "revisionsCollection": "revisions",
+    "refusals": ["stale-revision"],
+    "markups": {
+      "defaultStatus": "open",
+      "park": "needs-human",
+      "parkFrom": ["open", "grounded", "proposed", "applying"],
+      "reasonUpdateAt": "needs-human",
+      "terminal": ["resolved", "restored"]
+    },
+    "limits": { "pages": 1000, "writes": 450 }
+  },
+  "document": {
+    "$comment": "document.upsert -- DOCUMENT CONTROL phase 1 (wiki spec--document-control). ONE call for every way a PDF gets in: a document's revision is an immutable ordered list of CONTENT-ADDRESSED page refs. Input {documentId? | create? {name, source {driver | 'none', document_id?, file?}}, expectedRevision ('r{n}' | null), mode ('replace' | 'patch'), pages [{page_id, page_hash, sidecar_hash?, geometry {media_box, crop_box?, rotate?}, label?, sheet_number?}], remove? [page_id] (patch only), docdata? {source_document_id: hash}, blobs? [\"<h>.<ext>\"] (the blob objects the revision references: sorted, unique, ext in `objects.blobs.exts`, at most limits.pages; sent only when non-empty, so a call without blobs keeps its op hash), assembled? {packageHash, path?}, op_id}. Hashes are the sha256 hex (64 lowercase; a 'sha256:' prefix is accepted) of the object bytes. Objects: projects/{p}/pages/{h}.pdf, sidecars/{h}.json, docdata/{h}.json, assets/{h}.{ext} (`blobs`: an unsliced embedded file of the package, one general kind -- its ext must be in the allowlist `objects.blobs.exts`, which maps it to its content type; wiki spec--hosted-model3d D7), and (phase-1 compat) assembled/{documentId}-r{n}-{sha8}.pdf -- written ONLY by the service; a hash the project does not hold yet must be staged at projects/{p}/staging/{stager}/{h}.pdf|.json|.{blob ext} (stager = the caller's uid; the drafter's is `drafterStager`), the service reads it, verifies sha256 (hash-mismatch), copies it to its content path (never overwriting one) and deletes the staged object; absent everywhere -> missing-object. Every referenced object (pages, sidecars, docdata, blobs) is checked after the role and refusal checks and BEFORE any answer, replay and noop included: stat when present, verified from staging otherwise (a lost object self-heals on the next call); the transaction only references objects that exist; the assembled PDF is written only for a new revision. In ONE transaction: a revision of the document already carrying op_id is replayed; document.revision must equal expectedRevision (stale-revision); replace = pages is the full ordered list; patch = the current list with same-page_id entries replaced, new page_ids appended, `remove` dropped; docdata absent keeps the current, given replaces (patch: merges over the current; a null value removes a key). The same ordered (page_id, page_hash, sidecar_hash) list and the same docdata -> {noop: true} and no revision is written (only a missing referenced object is copied). Else revisions/r{n} {n, parent, pages (+ page: the 1-based position = the page of the assembled PDF), docdata, diff {added, changed (same page_id, other page_hash), unchanged, removed}, assembled?, packageHash + storagePath (= assembled, for old readers), source, mode, op_id, createdAt, createdBy}; the document (revision, version = n, pageCount, source, updatedAt; storagePath, downloadURL, packageHash, fileSizeBytes from assembled); the project Set (this document's entries updated in place where the page_id survives, removed ones dropped, new ones appended after the document's block -- the Set end for a document with none -- and sheetPages / the deprecated sheetMap re-derived); markups re-anchored exactly as review.ingest (the `ingest.markups` statuses). Every result (write, noop, replay) echoes blobs {present, copied}: the call's blob names, split by already at its content path vs verified from staging by this call (a client that sent blobs and gets no echo is talking to an old server). A new document (create) gets the id `newDocumentPrefix` + the first 20 hex of sha256(op_id), so a retried create replays, and r1.",
+    "upsert": "document.upsert",
+    "actors": ["admin", "editor", "drafter"],
+    "modes": ["replace", "patch"],
+    "refusals": ["stale-revision"],
+    "objectRefusals": ["hash-mismatch", "missing-object"],
+    "drafterStager": "drafter",
+    "newDocumentPrefix": "doc-",
+    "objects": {
+      "pages": { "folder": "pages", "ext": "pdf" },
+      "sidecars": { "folder": "sidecars", "ext": "json" },
+      "docdata": { "folder": "docdata", "ext": "json" },
+      "assembled": { "folder": "assembled", "ext": "pdf" },
+      "blobs": { "folder": "assets", "exts": { "glb": "model/gltf-binary", "md": "text/markdown" } },
+      "staging": { "folder": "staging" }
+    },
+    "limits": { "pages": 1000, "docdata": 64, "objectBytes": 26214400, "writes": 450 }
+  },
+  "set": {
+    "$comment": "set.update -- DOCUMENT CONTROL phase 2 (wiki spec--document-control): the working Set is REORDERED, pages INCLUDED or EXCLUDED; nothing else (a page's revision is always its document's current one -- document.upsert moves revisions). Input {expected, set: [{page_id, documentId, revision}]}. `expected` is the hash of the Set the caller saw: 'sha256:' + the sha256 hex of the UTF-8 bytes of JSON.stringify(set.map(e => [e.documentId, e.page_id, e.revision])) (no whitespace, no HTML escaping; an empty Set hashes '[]'); another Set -> stale-set. Every entry names a document of the project whose CURRENT revision is `revision` (else stale-revision) and holds page_id (else not-found); (documentId, page_id) is unique. In ONE transaction the project's `set` becomes the entries in the given order (page and sheet_number copied from that revision), sheetPages / the deprecated sheetMap are re-derived, and `excludedField` records every page that was in the Set (or already excluded) and is left out, as [{documentId, page_id}] -- document.upsert never re-appends an excluded page (a new page_id still appends) and drops an excluded page_id its document no longer holds. The same Set and exclusions -> {noop: true}, nothing written. Result {set, setHash, excluded, noop}.",
+    "update": "set.update",
+    "actors": ["admin", "editor", "drafter"],
+    "refusals": ["stale-set", "stale-revision"],
+    "hashPrefix": "sha256:",
+    "excludedField": "setExcluded",
+    "limits": { "entries": 1000, "documents": 64 }
+  }
+}

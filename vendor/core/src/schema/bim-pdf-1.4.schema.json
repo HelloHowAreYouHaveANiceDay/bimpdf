@@ -1,0 +1,1172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bimpdf.com/schema/bim-pdf-1.4.schema.json",
+  "title": "bim-pdf sidecar format v1.4",
+  "description": "Canonical JSON Schema for the bim-pdf sidecar documents embedded in a PDF/A-3 as associated files. Source of truth mirrors packages/core/src/types/*.ts. Schemas are intentionally OPEN (unknown properties allowed) so producers may add namespaced fields without breaking consumers during iteration; required fields and known field types are still enforced. v1.4 is additive over v1.3: AnnotationsDocument may carry a markup-layer registry, and Annotation may declare explicit layer membership for baking to PDF OCGs. All sidecar geometry is in NATIVE PDF user space (origin as the page boxes declare it -- NOT re-based to (0,0), commonly negative); see DESIGN.md \"Coordinate Spaces & Units\".",
+  "definitions": {
+    "FormatVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "Major.minor format version, e.g. \"1.0\"."
+    },
+    "Quantity": {
+      "type": "object",
+      "required": [
+        "value",
+        "unit"
+      ],
+      "properties": {
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string",
+          "description": "SI-ish unit string: m, m2, m3, mm, ft, ft2, ft3, in, etc."
+        }
+      }
+    },
+    "BBox": {
+      "type": "array",
+      "description": "Axis-aligned bbox in PDF points, origin bottom-left, Y-up: [x0, y0, x1, y1].",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "Point2D": {
+      "type": "array",
+      "description": "2D point in PDF points: [x, y].",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "ElementClass": {
+      "type": "string",
+      "description": "Class registry: 23 named classes plus producer-neutral pre-design classes parcel, zoning-envelope, and mass, plus 'other'. Values outside this set should use 'other' with class_hint.",
+      "enum": [
+        "wall",
+        "curtain-wall",
+        "slab",
+        "floor",
+        "column",
+        "beam",
+        "brace",
+        "footing",
+        "roof",
+        "door",
+        "window",
+        "curtain-panel",
+        "curtain-mullion",
+        "ceiling",
+        "room",
+        "stair",
+        "ramp",
+        "furniture",
+        "casework",
+        "equipment",
+        "parcel",
+        "zoning-envelope",
+        "mass",
+        "other"
+      ]
+    },
+    "ElementsDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "meta",
+        "source",
+        "class_registry",
+        "elements"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta"
+        },
+        "source": {
+          "$ref": "#/definitions/BimPdfSource"
+        },
+        "class_registry": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "elements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimElement"
+          }
+        }
+      }
+    },
+    "BimPdfMeta": {
+      "type": "object",
+      "required": [
+        "project_id",
+        "document_id",
+        "exported_at",
+        "producer"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string"
+        },
+        "document_id": {
+          "type": "string"
+        },
+        "exported_at": {
+          "type": "string",
+          "description": "ISO 8601 datetime."
+        },
+        "producer": {
+          "type": "string"
+        }
+      }
+    },
+    "BimPdfSource": {
+      "type": "object",
+      "required": [
+        "format",
+        "id_strategy"
+      ],
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Native source format, e.g. 'revit', 'ifc'."
+        },
+        "version": {
+          "type": "string"
+        },
+        "id_strategy": {
+          "type": "string"
+        },
+        "id_stability_notes": {
+          "type": "string"
+        }
+      }
+    },
+    "BimElement": {
+      "type": "object",
+      "required": [
+        "id",
+        "class"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable across re-exports of the same model version. When a producer has no native element id, use a UUID v5 derived deterministically from a stable seed such as parcel_apn + \"/\" + block_index."
+        },
+        "class": {
+          "$ref": "#/definitions/ElementClass"
+        },
+        "class_hint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Producer's native category name. Required when class === 'other'."
+        },
+        "label": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "level_id": {
+          "type": "string",
+          "description": "UUID v5 referencing an entry in levels.json."
+        },
+        "quantities": {
+          "type": "object",
+          "properties": {
+            "area": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "volume": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "length": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "width": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "height": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "perimeter": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "count": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "weight": {
+              "$ref": "#/definitions/Quantity"
+            }
+          }
+        },
+        "properties": {
+          "type": "object",
+          "description": "Namespaced property bag: keys prefixed by producer (e.g. 'revit.family')."
+        }
+      },
+      "allOf": [
+        {
+          "$comment": "class_hint is required when class is 'other'.",
+          "if": {
+            "properties": {
+              "class": {
+                "const": "other"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "class_hint"
+            ]
+          }
+        }
+      ]
+    },
+    "MarksDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "requires",
+        "coordinate_space",
+        "marks"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "const": "elements.json"
+          }
+        },
+        "coordinate_space": {
+          "type": "string"
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Mark"
+          }
+        }
+      }
+    },
+    "Mark": {
+      "type": "object",
+      "required": [
+        "element_id",
+        "page",
+        "bbox"
+      ],
+      "properties": {
+        "element_id": {
+          "type": "string"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page number."
+        },
+        "bbox": {
+          "$ref": "#/definitions/BBox"
+        },
+        "view_type": {
+          "type": "string",
+          "description": "plan | elevation | section | detail | schedule | 3d | (open string)."
+        },
+        "outline": {
+          "type": "array",
+          "description": "Projected outline of the element, SAME coordinate space as bbox. Array of rings; each ring is a closed list of [x, y] points. Absent when the producer could not extract geometry -- consumers fall back to bbox.",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/Point2D"
+            }
+          }
+        },
+        "depth": {
+          "type": "number",
+          "description": "Distance of the element (centroid) from the view plane along the view direction, producer-defined linear units, SMALLER = nearer. Only the ordering is meaningful (overlap ranking), never measurement."
+        },
+        "visibility": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Hidden-line visibility fraction (0..1): share of the element footprint NOT covered by strictly nearer opaque geometry in its view. 0 = drawn but fully behind other geometry."
+        }
+      }
+    },
+    "ScalesDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "pages"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "pages": {
+          "type": "object",
+          "description": "Keys are 1-indexed page numbers as strings.",
+          "additionalProperties": {
+            "$ref": "#/definitions/PageScaleEntry"
+          }
+        }
+      }
+    },
+    "PageScaleEntry": {
+      "description": "Either a flat PageScale (v1.0, one scale per page) or a viewport-aware PageScaleSet (v1.1+).",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/PageScale"
+        },
+        {
+          "$ref": "#/definitions/PageScaleSet"
+        }
+      ]
+    },
+    "PageScaleSet": {
+      "type": "object",
+      "description": "Per-page scale info for a multi-viewport sheet. Distinguished from a flat PageScale by the absence of a top-level 'type' discriminant.",
+      "not": {
+        "required": [
+          "type"
+        ]
+      },
+      "properties": {
+        "geometry": {
+          "$ref": "#/definitions/PageGeometry"
+        },
+        "default": {
+          "$ref": "#/definitions/PageScale"
+        },
+        "viewports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScaleViewport"
+          }
+        }
+      }
+    },
+    "ScaleViewport": {
+      "type": "object",
+      "required": [
+        "rect",
+        "scale"
+      ],
+      "properties": {
+        "rect": {
+          "$ref": "#/definitions/BBox"
+        },
+        "scale": {
+          "$ref": "#/definitions/PageScale"
+        },
+        "name": {
+          "type": "string"
+        },
+        "view_id": {
+          "type": "string"
+        },
+        "pdf_from_model": {
+          "$ref": "#/definitions/AffineMatrix2D",
+          "description": "Affine transform mapping model coordinates (in model_unit) to PDF user-space points for this viewport. When present, consumers MUST prefer it over scale for measurement and pdf<->model round trips."
+        },
+        "model_unit": {
+          "type": "string",
+          "description": "Linear unit of the model coordinates pdf_from_model maps from, e.g. \"mm\", \"m\", \"ft\"."
+        }
+      }
+    },
+    "PageScale": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/RatioScale"
+        },
+        {
+          "$ref": "#/definitions/CalibrationScale"
+        }
+      ]
+    },
+    "RatioScale": {
+      "type": "object",
+      "required": [
+        "type",
+        "ratio",
+        "unit"
+      ],
+      "properties": {
+        "type": {
+          "const": "ratio"
+        },
+        "ratio": {
+          "type": "number",
+          "description": "Denominator of the scale ratio; 100 means 1:100."
+        },
+        "unit": {
+          "type": "string"
+        }
+      }
+    },
+    "CalibrationScale": {
+      "type": "object",
+      "required": [
+        "type",
+        "p1",
+        "p2",
+        "real_distance"
+      ],
+      "properties": {
+        "type": {
+          "const": "calibration"
+        },
+        "p1": {
+          "$ref": "#/definitions/Point2D"
+        },
+        "p2": {
+          "$ref": "#/definitions/Point2D"
+        },
+        "real_distance": {
+          "$ref": "#/definitions/Quantity"
+        }
+      }
+    },
+    "LevelsDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "levels"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BimLevel"
+          }
+        }
+      }
+    },
+    "BimLevel": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "elevation"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "UUID v5; must match element.level_id references."
+        },
+        "name": {
+          "type": "string"
+        },
+        "elevation": {
+          "$ref": "#/definitions/Quantity"
+        }
+      }
+    },
+    "TitleblockDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "sheets"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "sheets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TitleBlockSheet"
+          }
+        }
+      }
+    },
+    "TitleBlockSheet": {
+      "type": "object",
+      "required": [
+        "page"
+      ],
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed page number."
+        },
+        "sheet_number": {
+          "type": "string"
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "project_name": {
+          "type": "string"
+        },
+        "project_number": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "scale": {
+          "type": "string"
+        },
+        "drawn_by": {
+          "type": "string"
+        },
+        "checked_by": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "titleblock": {
+          "$ref": "#/definitions/SheetTitleblock"
+        },
+        "zoning_data_block": {
+          "$ref": "#/definitions/ZoningDataBlock"
+        },
+        "area_tabulation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AreaTabulationEntry"
+          }
+        },
+        "legend": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SheetLegendEntry"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "SheetTitleblock": {
+      "type": "object",
+      "properties": {
+        "project_name": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "project_address": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "sheet_title": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "sheet_number": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "scale": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "date": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "north_deg": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "firm": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "drawn_by": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TitleblockRevision"
+          }
+        }
+      }
+    },
+    "TitleblockRevision": {
+      "type": "object",
+      "properties": {
+        "date": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "description": {
+          "$ref": "#/definitions/NullableString"
+        }
+      }
+    },
+    "ZoningDataBlock": {
+      "type": "object",
+      "properties": {
+        "district": {
+          "$ref": "#/definitions/NullableString"
+        },
+        "lot_area_sf": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "far_allowed": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "far_proposed": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "height_allowed_ft": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "height_proposed_ft": {
+          "$ref": "#/definitions/NullableNumber"
+        },
+        "coverage_allowed": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "coverage_proposed": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "setbacks": {
+          "$ref": "#/definitions/ZoningSetbacks"
+        },
+        "parking_required": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "uses": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ZoningSetbacks": {
+      "type": "object",
+      "properties": {
+        "front": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "side": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "rear": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        }
+      }
+    },
+    "AreaTabulationEntry": {
+      "type": "object",
+      "required": [
+        "label",
+        "unit"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/StringNumberOrNull"
+        },
+        "unit": {
+          "type": "string"
+        }
+      }
+    },
+    "SheetLegendEntry": {
+      "type": "object",
+      "required": [
+        "meaning"
+      ],
+      "properties": {
+        "symbol": {
+          "type": "string"
+        },
+        "line_type": {
+          "type": "string"
+        },
+        "meaning": {
+          "type": "string"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "symbol"
+          ]
+        },
+        {
+          "required": [
+            "line_type"
+          ]
+        }
+      ]
+    },
+    "NullableString": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "NullableNumber": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "StringNumberOrNull": {
+      "type": [
+        "string",
+        "number",
+        "null"
+      ]
+    },
+    "AnnotationsDocument": {
+      "type": "object",
+      "required": [
+        "bim-pdf",
+        "requires",
+        "coordinate_space",
+        "annotations"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "requires": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "contains": {
+            "const": "elements.json"
+          }
+        },
+        "coordinate_space": {
+          "type": "string"
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MarkupLayer"
+          }
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Annotation"
+          }
+        }
+      }
+    },
+    "AnnotationType": {
+      "type": "string",
+      "description": "Markup types (human/agent authored) plus producer-extracted types (dimension, tag, detail, other).",
+      "enum": [
+        "polygon",
+        "polyline",
+        "rectangle",
+        "circle",
+        "text",
+        "arrow",
+        "callout",
+        "cloud",
+        "stamp",
+        "highlight",
+        "freehand",
+        "count",
+        "dimension",
+        "tag",
+        "detail",
+        "other"
+      ]
+    },
+    "AnnotationAuthor": {
+      "type": "object",
+      "required": [
+        "id",
+        "display",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "display": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "human",
+            "agent"
+          ]
+        }
+      }
+    },
+    "AnnotationStyle": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": "string"
+        },
+        "fill_color": {
+          "type": "string"
+        },
+        "line_width": {
+          "type": "number"
+        },
+        "opacity": {
+          "type": "number"
+        }
+      }
+    },
+    "MarkupLayer": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Stable layer id referenced by Annotation.layer_id."
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name; must match the baked PDF Optional Content Group /Name."
+        },
+        "default_visible": {
+          "type": "boolean",
+          "description": "Initial layer visibility in the baked PDF. Omitted means true."
+        },
+        "locked": {
+          "type": "boolean",
+          "description": "When true, the UI should not allow toggling this layer."
+        }
+      }
+    },
+    "Annotation": {
+      "type": "object",
+      "required": [
+        "id",
+        "page",
+        "type",
+        "author",
+        "created_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "type": {
+          "$ref": "#/definitions/AnnotationType"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Point2D"
+          },
+          "description": "Vertices for polygon, polyline, arrow, callout."
+        },
+        "bbox": {
+          "$ref": "#/definitions/BBox"
+        },
+        "label": {
+          "type": "string"
+        },
+        "author": {
+          "$ref": "#/definitions/AnnotationAuthor"
+        },
+        "created_at": {
+          "type": "string",
+          "description": "ISO 8601 datetime."
+        },
+        "element_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Element association: links to zero or more elements in elements.json. A single-target markup uses a one-entry array; a region markup (e.g. a revision cloud enclosing several elements) carries many. Absent/empty = freeform annotation."
+        },
+        "label_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Id of a text/callout annotation that labels this graphic markup; absent/null = inline label or proximity-inferred."
+        },
+        "group_id": {
+          "type": "string",
+          "description": "Shared id clustering annotations that form one logical markup unit (e.g. a cloud + the callout labeling it)."
+        },
+        "layer_id": {
+          "type": "string",
+          "description": "Explicit markup-layer membership referencing a MarkupLayer.id; baking maps this to the annotation's /OC entry."
+        },
+        "style": {
+          "$ref": "#/definitions/AnnotationStyle"
+        },
+        "measurement": {
+          "type": "object",
+          "properties": {
+            "area": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "perimeter": {
+              "$ref": "#/definitions/Quantity"
+            },
+            "length": {
+              "$ref": "#/definitions/Quantity"
+            }
+          }
+        }
+      }
+    },
+    "Model3dDocument": {
+      "type": "object",
+      "description": "Optional live 3D model placements for embedded glb attachments. Element-to-mesh links stay inside the glb via glTF node.extras.element_id; this sidecar only describes where each model activates on the sheet and how to frame its camera.",
+      "required": [
+        "bim-pdf",
+        "meta",
+        "models"
+      ],
+      "properties": {
+        "bim-pdf": {
+          "$ref": "#/definitions/FormatVersion"
+        },
+        "meta": {
+          "$ref": "#/definitions/BimPdfMeta"
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Model3dEntry"
+          }
+        }
+      }
+    },
+    "Model3dEntry": {
+      "type": "object",
+      "required": [
+        "glb_ref",
+        "page",
+        "anchor_rect",
+        "camera",
+        "model_center_offset",
+        "unit"
+      ],
+      "properties": {
+        "glb_ref": {
+          "type": "string",
+          "description": "Filename of the embedded glb attachment, e.g. \"model.glb\"."
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed PDF page the 3D view sits on."
+        },
+        "anchor_rect": {
+          "$ref": "#/definitions/BBox",
+          "description": "Sheet region in PDF user-space points where the flat poster sits and the live model activates."
+        },
+        "camera": {
+          "$ref": "#/definitions/Model3dCamera"
+        },
+        "model_center_offset": {
+          "type": "array",
+          "description": "Meters subtracted from geometry before float32 cast; viewers add it back to place the camera in the same world frame.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "unit": {
+          "const": "m",
+          "description": "Linear unit for camera and model_center_offset."
+        },
+        "compression": {
+          "type": "string",
+          "enum": [
+            "none",
+            "draco"
+          ],
+          "default": "none"
+        }
+      }
+    },
+    "Model3dCamera": {
+      "type": "object",
+      "description": "Camera framing for a live glTF 3D view, in meters and glTF Y-up. Supports orthographic and perspective projections (mirrors glTF 2.0 camera schema).",
+      "required": [
+        "projection",
+        "eye",
+        "target",
+        "up"
+      ],
+      "properties": {
+        "projection": {
+          "type": "string",
+          "enum": [
+            "orthographic",
+            "perspective"
+          ]
+        },
+        "eye": {
+          "type": "array",
+          "description": "Camera position in world space, meters, glTF Y-up.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "target": {
+          "type": "array",
+          "description": "Point the camera looks at, meters, glTF Y-up.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "up": {
+          "type": "array",
+          "description": "Camera up vector (unit), glTF Y-up.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "ortho_half_extents": {
+          "type": "array",
+          "description": "[half-width, half-height] of the orthographic frustum, in meters. Required when projection is orthographic.",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "perspective": {
+          "type": "object",
+          "description": "Perspective projection parameters, mirrors glTF camera.perspective. Required when projection is perspective.",
+          "required": [
+            "yfov"
+          ],
+          "properties": {
+            "yfov": {
+              "type": "number",
+              "description": "Vertical field of view in radians.",
+              "exclusiveMinimum": 0
+            },
+            "aspectRatio": {
+              "type": "number",
+              "description": "Aspect ratio (width / height).",
+              "exclusiveMinimum": 0
+            },
+            "znear": {
+              "type": "number",
+              "description": "Near clipping plane distance in meters.",
+              "exclusiveMinimum": 0
+            },
+            "zfar": {
+              "type": "number",
+              "description": "Far clipping plane distance in meters.",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "projection": {
+                "const": "orthographic"
+              }
+            },
+            "required": [
+              "projection"
+            ]
+          },
+          "then": {
+            "required": [
+              "ortho_half_extents"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "projection": {
+                "const": "perspective"
+              }
+            },
+            "required": [
+              "projection"
+            ]
+          },
+          "then": {
+            "required": [
+              "perspective"
+            ]
+          }
+        }
+      ]
+    },
+    "AffineMatrix2D": {
+      "type": "array",
+      "description": "2D affine transform in PDF matrix convention [a,b,c,d,e,f]: x' = a*x + c*y + e; y' = b*x + d*y + f.",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "PageGeometry": {
+      "type": "object",
+      "description": "Per-page PDF geometry snapshot. Mirrors the page boxes as written in the PDF so a consumer can validate sidecar coordinates against the file and detect legacy (pre-v1.1, page-relative) sidecars by its absence. Presence of a geometry block on any page declares the whole package to be native-user-space by contract.",
+      "required": [
+        "media_box"
+      ],
+      "properties": {
+        "media_box": {
+          "$ref": "#/definitions/BBox",
+          "description": "The page /MediaBox: [x0, y0, x1, y1]."
+        },
+        "crop_box": {
+          "$ref": "#/definitions/BBox",
+          "description": "The page /CropBox when it differs from /MediaBox."
+        },
+        "rotate": {
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ],
+          "description": "The page /Rotate value (display-only rotation), degrees clockwise."
+        }
+      }
+    }
+  }
+}

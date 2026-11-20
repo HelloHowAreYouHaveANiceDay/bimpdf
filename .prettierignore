@@ -1,0 +1,6 @@
+# byte copies of upstream files (locked by vendor/SHA256SUMS)
+vendor/
+# published as-is
+*.html
+llms.txt
+sitemap.xml

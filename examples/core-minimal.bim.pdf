@@ -1,0 +1,171 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /Metadata 5 0 R /Names << /EmbeddedFiles << /Names [(README-agent.md) 16 0 R (elements.json) 10 0 R (levels.json) 12 0 R (marks.json) 14 0 R] >> >> /AF [16 0 R 10 0 R 12 0 R 14 0 R] /Extensions << /BIMP << /BaseVersion /1.7 /ExtensionLevel 1 /URL (https://bimpdf.com/spec) >> >> >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [18 0 R] /Count 1 >>
+endobj
+5 0 obj
+<< /Type /Metadata /Subtype /XML /Length 3030 >>
+stream
+<?xpacket begin="Ôªø" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"><xmp:CreatorTool>bimpdf-site gen-examples (synthetic)</xmp:CreatorTool><xmp:CreateDate>2026-07-05T00:00:00Z</xmp:CreateDate><xmp:ModifyDate>2026-07-05T00:00:00Z</xmp:ModifyDate><dc:title><rdf:Alt><rdf:li xml:lang="x-default">bimpdf synthetic example</rdf:li></rdf:Alt></dc:title></rdf:Description><rdf:Description rdf:about="" xmlns:bimpdf="https://bimpdf.com/ns/1/"><bimpdf:formatVersion>1.14</bimpdf:formatVersion><bimpdf:conformance>core</bimpdf:conformance><bimpdf:spec>https://bimpdf.com/spec</bimpdf:spec><bimpdf:readingHint>This PDF carries building data as attached JSON files; start with elements.json and README-agent.md.</bimpdf:readingHint></rdf:Description><rdf:Description rdf:about="" xmlns:pdfaExtension="http://www.aiim.org/pdfa/ns/extension/" xmlns:pdfaSchema="http://www.aiim.org/pdfa/ns/schema#" xmlns:pdfaProperty="http://www.aiim.org/pdfa/ns/property#"><pdfaExtension:schemas><rdf:Bag><rdf:li rdf:parseType="Resource"><pdfaSchema:schema>bim-pdf declaration</pdfaSchema:schema><pdfaSchema:namespaceURI>https://bimpdf.com/ns/1/</pdfaSchema:namespaceURI><pdfaSchema:prefix>bimpdf</pdfaSchema:prefix><pdfaSchema:property><rdf:Seq><rdf:li rdf:parseType="Resource"><pdfaProperty:name>formatVersion</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>bim-pdf sidecar format version, MAJOR.MINOR.</pdfaProperty:description></rdf:li><rdf:li rdf:parseType="Resource"><pdfaProperty:name>conformance</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>Conformance level: core or drawing.</pdfaProperty:description></rdf:li><rdf:li rdf:parseType="Resource"><pdfaProperty:name>archival</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>Archival flag: pdfa-3b when the file also passes PDF/A-3b.</pdfaProperty:description></rdf:li><rdf:li rdf:parseType="Resource"><pdfaProperty:name>spec</pdfaProperty:name><pdfaProperty:valueType>URI</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>URL of the format specification.</pdfaProperty:description></rdf:li><rdf:li rdf:parseType="Resource"><pdfaProperty:name>readingHint</pdfaProperty:name><pdfaProperty:valueType>Text</pdfaProperty:valueType><pdfaProperty:category>external</pdfaProperty:category><pdfaProperty:description>One sentence telling a reader how to read this file.</pdfaProperty:description></rdf:li></rdf:Seq></pdfaSchema:property></rdf:li></rdf:Bag></pdfaExtension:schemas></rdf:Description></rdf:RDF></x:xmpmeta>
+<?xpacket end="w"?>
+endstream
+endobj
+10 0 obj
+<< /Type /Filespec /F (elements.json) /UF (elements.json) /Desc (bim-pdf elements \(the anchor\): elements.json \(https://bimpdf.com/spec\)) /AFRelationship /BIMP_Elements /EF << /F 11 0 R /UF 11 0 R >> >>
+endobj
+11 0 obj
+<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size 1039 /ModDate (D:20260705000000+00'00') >> /Length 1039 >>
+stream
+{
+  "bim-pdf": "1.14",
+  "meta": {
+    "project_id": "8f1a3c2e-0000-5000-8000-000000000001",
+    "document_id": "8f1a3c2e-0000-5000-8000-000000000002",
+    "exported_at": "2026-07-05T00:00:00Z",
+    "producer": "bimpdf-site gen-examples (synthetic)"
+  },
+  "source": {
+    "format": "other",
+    "version": "1",
+    "id_strategy": "synthetic-sequential",
+    "id_stability_notes": "synthetic example; ids are fixed strings"
+  },
+  "class_registry": "1.0",
+  "elements": [
+    {
+      "id": "wall-0001",
+      "class": "wall",
+      "label": "Basic Wall: Generic - 200mm",
+      "level": "Level 1",
+      "level_id": "8f1a3c2e-0000-5000-8000-0000000000aa",
+      "quantities": {
+        "length": {
+          "value": 5,
+          "unit": "m"
+        },
+        "area": {
+          "value": 12.5,
+          "unit": "m2"
+        }
+      }
+    },
+    {
+      "id": "door-0001",
+      "class": "door",
+      "label": "Single-Flush: 0915 x 2134mm",
+      "level": "Level 1",
+      "level_id": "8f1a3c2e-0000-5000-8000-0000000000aa"
+    }
+  ]
+}
+
+endstream
+endobj
+12 0 obj
+<< /Type /Filespec /F (levels.json) /UF (levels.json) /Desc (bim-pdf levels: levels.json \(https://bimpdf.com/spec\)) /AFRelationship /Data /EF << /F 13 0 R /UF 13 0 R >> >>
+endobj
+13 0 obj
+<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size 201 /ModDate (D:20260705000000+00'00') >> /Length 201 >>
+stream
+{
+  "bim-pdf": "1.14",
+  "levels": [
+    {
+      "id": "8f1a3c2e-0000-5000-8000-0000000000aa",
+      "name": "Level 1",
+      "elevation": {
+        "value": 0,
+        "unit": "m"
+      }
+    }
+  ]
+}
+
+endstream
+endobj
+14 0 obj
+<< /Type /Filespec /F (marks.json) /UF (marks.json) /Desc (bim-pdf marks: marks.json \(https://bimpdf.com/spec\)) /AFRelationship /Data /EF << /F 15 0 R /UF 15 0 R >> >>
+endobj
+15 0 obj
+<< /Type /EmbeddedFile /Subtype /application#2Fjson /Params << /Size 293 /ModDate (D:20260705000000+00'00') >> /Length 293 >>
+stream
+{
+  "bim-pdf": "1.14",
+  "requires": [
+    "elements.json"
+  ],
+  "coordinate_space": "pdf-points-bottom-left",
+  "marks": [
+    {
+      "element_id": "wall-0001",
+      "page": 1,
+      "bbox": [
+        72,
+        72,
+        288,
+        144
+      ],
+      "view_type": "plan"
+    }
+  ]
+}
+
+endstream
+endobj
+16 0 obj
+<< /Type /Filespec /F (README-agent.md) /UF (README-agent.md) /Desc (bim-pdf reading guide: README-agent.md \(https://bimpdf.com/spec\)) /AFRelationship /Supplement /EF << /F 17 0 R /UF 17 0 R >> >>
+endobj
+17 0 obj
+<< /Type /EmbeddedFile /Subtype /text#2Fmarkdown /Params << /Size 399 /ModDate (D:20260705000000+00'00') >> /Length 399 >>
+stream
+# Reading this file
+
+This is a synthetic bimpdf 1.14 example (conformance core). It contains no real project data.
+
+1. Start with `elements.json`: the building elements and their ids.
+2. `marks.json` places elements on pages (bbox in PDF points, bottom-left origin).
+3. Every attachment is listed in the catalog `/AF`; `/Desc` names its role.
+4. The format specification is https://bimpdf.com/spec.
+
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /ColorSpace << /CS0 [/CalGray << /WhitePoint [0.9505 1 1.089] /Gamma 1 >>] >> >> /Contents 19 0 R >>
+endobj
+19 0 obj
+<<  /Length 0 >>
+stream
+
+endstream
+endobj
+xref
+0 20
+0000000000 65535 f 
+0000000015 00000 n 
+0000000343 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000401 00000 n 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000000000 00000 f 
+0000003513 00000 n 
+0000003735 00000 n 
+0000004936 00000 n 
+0000005126 00000 n 
+0000005487 00000 n 
+0000005673 00000 n 
+0000006126 00000 n 
+0000006341 00000 n 
+0000006897 00000 n 
+0000007081 00000 n 
+trailer
+<< /Size 20 /Root 1 0 R /ID [<0123456789ABCDEF0123456789ABCDEF> <0123456789ABCDEF0123456789ABCDEF>] >>
+startxref
+7132
+%%EOF

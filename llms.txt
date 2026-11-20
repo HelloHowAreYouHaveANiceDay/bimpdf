@@ -1,0 +1,58 @@
+# BIM to PDF -- bim-pdf Open Format Spec
+
+> bim-pdf is an open format for keeping bim (Revit, IFC) sidecars attached to a standard PDF.
+> The PDF opens in any viewer (Acrobat, Bluebeam, etc.); tools that understand bim-pdf can
+> extract the structured element data from the same file instead of relying on a separate handoff.
+
+## What BIM to PDF means
+Exporting BIM to PDF normally discards element data and produces a flat drawing. bim-pdf keeps
+the drawing and JSON sidecars together in one file via the PDF EmbeddedFiles mechanism -- no new
+container, no viewer lock-in, no proprietary parser required.
+
+## Revit and IFC export
+The bim-pdf Revit add-in exports a Revit sheet to a standard PDF with up to six bim sidecars:
+elements, marks (spatial overlay), scales (real-world calibration), levels, title block, and an
+IFC subset. IFC models map to the same element-class registry via ifc-subset.json.
+
+## Sidecar documents
+- elements.json -- bim element list + document metadata (anchor for all other sidecars)
+- marks.json -- spatial overlay linking elements to page regions (bbox in PDF points)
+- scales.json -- per-page calibration (PDF points to real-world units)
+- levels.json -- building level definitions with elevation
+- titleblock.json -- sheet metadata from title blocks, zoning data blocks, legends, notes, and area tabulations
+- annotations.json -- human and agent markup
+- ifc-subset.json -- optional IFC data subset for cross-tool interop
+
+## Element classes (v1.0 registry)
+Structural: wall, curtain-wall, slab, floor, column, beam, brace, footing.
+Envelope: roof, door, window, curtain-panel, curtain-mullion.
+Interior: ceiling, room, stair, ramp. FF&E: furniture, casework, equipment.
+Fallback: other (requires class_hint). MEP is excluded from v1.0.
+
+## Format principles
+PDF-first, additive, stable IDs, progressive (only elements.json is required), open (no registry,
+no auth; spec CC-BY-4.0, schemas Apache-2.0). Vendor-neutral: any PDF library that supports EmbeddedFile streams can
+produce or consume bim-pdf.
+
+## Specification
+- Normative spec, always the current version (1.14): https://bimpdf.com/spec
+- XMP namespaces: https://bimpdf.com/ns/1/ (declaration), https://bimpdf.com/ns/1.0/ (legacy pdfbim fields)
+- Licences: spec text CC-BY-4.0; schemas and validator Apache-2.0.
+- Examples (synthetic .bim.pdf files, core and drawing level): https://bimpdf.com/examples/
+- Validator (Node 20+, no install): `node validator/bimpdf-validate.mjs file.bim.pdf` in the public repository.
+
+## JSON Schemas (version-pinned URLs; published files never change)
+- v1.14 (current): https://bimpdf.com/schema/bim-pdf-1.14.schema.json -- adds the self-declaration
+  (XMP label, /Extensions, AFRelationship + /Desc on every attachment); no sidecar shape changed.
+- Older: https://bimpdf.com/schema/bim-pdf-1.N.schema.json for N = 0..13. Since 1.1 all coordinates
+  are NATIVE PDF user space (origin as the page boxes declare it, commonly negative on centered
+  MediaBoxes), Y-up, points.
+
+## Tools (bim-cli ecosystem)
+- bim revit export -- export a Revit sheet to bim-pdf (PDF + bim sidecars)
+- bim pdf pack / extract / list / validate -- embed, extract, list, validate sidecars
+- bim pdfv open -- open in the pdfv viewer with bim element overlay
+
+## Links
+- Spec: https://bimpdf.com/spec
+- Tools: https://bimcli.com (no account required)

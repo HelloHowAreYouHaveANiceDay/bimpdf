@@ -1,0 +1,32 @@
+{
+  "schema": "ci-local/1",
+  "os_required": "any",
+  "toolchain": { "node": "24" },
+  "setup": [],
+  "suites": [
+    { "id": "install", "run": ["npm ci"], "required": true, "os": "any", "timeout_min": 15 },
+    {
+      "id": "standards",
+      "run": ["node .standards/check.mjs"],
+      "required": true,
+      "os": "any",
+      "timeout_min": 5
+    },
+    {
+      "id": "vendor-sums",
+      "run": ["node scripts/vendor-sums.mjs --check"],
+      "required": true,
+      "os": "any",
+      "timeout_min": 5
+    },
+    { "id": "test", "run": ["npm test"], "required": true, "os": "any", "timeout_min": 20 },
+    { "id": "build", "run": ["npm run build"], "required": true, "os": "any", "timeout_min": 10 },
+    {
+      "id": "secret-scan",
+      "run": ["node ci/scripts/secret-scan.mjs"],
+      "required": true,
+      "os": "any",
+      "timeout_min": 5
+    }
+  ]
+}

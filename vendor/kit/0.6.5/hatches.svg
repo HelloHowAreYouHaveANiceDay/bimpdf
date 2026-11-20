@@ -1,0 +1,21 @@
+<!-- Broadsheet hatch library (@bim-pdf/ui-kit hatches.svg): the tone ladder, 11 steps by ink coverage.
+     Inline this fragment ONCE per page, inside the kit root (Chrome cannot paint with an external SVG file:
+     fill: url(hatches.svg#id) draws nothing), then put .bk-hatch-<id> on an SVG mark or a legend swatch's <rect>.
+     Any step also works as a paint, url(#bk-hatch-<id>) (solid = ink, outline = no fill: give it a stroke).
+     One ink (--bk-hatch-ink, base.css .bk-hatch-stroke / .bk-hatch-fleck), one 1px weight; spacing sets the tone.
+     Pitches are in the drawing SVG's user units: a viewBox-scaled chart scales them (DESIGN.md "Hatches"). -->
+<svg xmlns="http://www.w3.org/2000/svg" class="bk-hatches" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <pattern id="bk-hatch-solid" width="4" height="4" patternUnits="userSpaceOnUse"><rect class="bk-hatch-fleck" width="4" height="4"/></pattern>
+    <pattern id="bk-hatch-diag-dense" width="3" height="3" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="bk-hatch-stroke" d="M0 0V3"/></pattern>
+    <pattern id="bk-hatch-diag" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="bk-hatch-stroke" d="M0 0V5"/></pattern>
+    <pattern id="bk-hatch-diag-sparse" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="bk-hatch-stroke" d="M0 0V8"/></pattern>
+    <pattern id="bk-hatch-back" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><path class="bk-hatch-stroke" d="M0 0V5"/></pattern>
+    <pattern id="bk-hatch-cross" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="bk-hatch-stroke" d="M0 0V6M0 0H6"/></pattern>
+    <pattern id="bk-hatch-horiz" width="4" height="4" patternUnits="userSpaceOnUse"><path class="bk-hatch-stroke" d="M0 0.5H4"/></pattern>
+    <pattern id="bk-hatch-vert" width="4" height="4" patternUnits="userSpaceOnUse"><path class="bk-hatch-stroke" d="M0.5 0V4"/></pattern>
+    <pattern id="bk-hatch-dots" width="5" height="5" patternUnits="userSpaceOnUse"><rect class="bk-hatch-fleck" x="1.5" y="1.5" width="1.6" height="1.6"/></pattern>
+    <pattern id="bk-hatch-grid" width="8" height="8" patternUnits="userSpaceOnUse"><path class="bk-hatch-stroke" d="M0.5 0V8M0 0.5H8"/></pattern>
+    <pattern id="bk-hatch-outline" width="4" height="4" patternUnits="userSpaceOnUse"></pattern>
+  </defs>
+</svg>

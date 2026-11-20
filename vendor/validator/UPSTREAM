@@ -1,0 +1,3 @@
+repo: HelloHowAreYouHaveANiceDay/pdfmarkuptool
+path: packages/core (dist/validate.js + dist/index.js, bundled by scripts/build-validator.mjs, esbuild 0.27.7)
+commit: 6423fd146debd7c469b8e781f59cfdb4a266aa27

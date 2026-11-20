@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bimpdf XMP namespace 1</title>
+<link rel="canonical" href="https://bimpdf.com/ns/1/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/kit/tokens.css">
+<link rel="stylesheet" href="/kit/base.css">
+</head>
+<body class="bk-page bk-page--reading" data-bk-density="reading" data-bk-property="bimpdf">
+<header class="bk-masthead">
+  <nav class="bk-nav" aria-label="Site">
+    <a class="bk-logo" href="/"><img src="/logo.svg" alt="" width="32" height="32"><span class="bk-wordmark">bim&middot;pdf</span></a>
+    <a href="/spec">Spec</a>
+  </nav>
+</header>
+<main>
+  <h1>bimpdf XMP namespace, version 1</h1>
+  <p>The namespace URI <code>https://bimpdf.com/ns/1/</code> (prefix <code>bimpdf</code>) labels a PDF as a .bim.pdf. It is declared in the file's XMP packet, which includes a PDF/A extension-schema block describing these properties. The URI changes only on a major format version.</p>
+  <div class="bk-table-wrap" role="region" aria-label="Properties" tabindex="0"><table>
+  <thead><tr><th>Property</th><th>Type</th><th>Meaning</th></tr></thead>
+  <tbody>
+  <tr><td><code>bimpdf:formatVersion</code></td><td>Text</td><td>The format version the file follows, for example <code>1.14</code>.</td></tr>
+  <tr><td><code>bimpdf:conformance</code></td><td>Text</td><td><code>core</code> or <code>drawing</code>.</td></tr>
+  <tr><td><code>bimpdf:archival</code></td><td>Text, optional</td><td><code>pdfa-3b</code> when the file also passes veraPDF as PDF/A-3b.</td></tr>
+  <tr><td><code>bimpdf:spec</code></td><td>URI</td><td>Link to the specification, <a href="/spec">https://bimpdf.com/spec</a>.</td></tr>
+  <tr><td><code>bimpdf:readingHint</code></td><td>Text</td><td>One sentence on how to read the file.</td></tr>
+  </tbody></table></div>
+  <p>Producer identity uses the standard <code>xmp:CreatorTool</code>. Details: <a href="/spec#4-declaration-and-discovery">section 4 of the specification</a>. The older <code>pdfbim</code> fields are described at <a href="/ns/1.0/">/ns/1.0/</a>.</p>
+</main>
+</body>
+</html>

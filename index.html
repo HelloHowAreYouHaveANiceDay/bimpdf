@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BIM to PDF: Free Revit Add-in for PDF Export</title>
+<meta name="description" content="Export Revit or IFC data to a standard PDF that keeps the drawing and bim sidecars together. Free Revit add-in, no account, opens in standard PDF viewers.">
+<link rel="canonical" href="https://bimpdf.com/">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+<meta name="theme-color" content="#C8721E">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://bimpdf.com/">
+<meta property="og:title" content="BIM to PDF: Free Revit Add-in for PDF Export">
+<meta property="og:description" content="Export Revit or IFC data to a standard PDF that keeps the drawing and bim sidecars together. Free Revit add-in, no account, opens in standard PDF viewers.">
+<meta property="og:image" content="https://bimpdf.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="BIM to PDF: Free Revit Add-in for PDF Export">
+<meta name="twitter:description" content="Export Revit or IFC data to a standard PDF that keeps the drawing and bim sidecars together. Free Revit add-in, no account, opens in standard PDF viewers.">
+<meta name="twitter:image" content="https://bimpdf.com/og-image.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "BIM to PDF -- bim-pdf Open Format Spec",
+  "name": "bim-pdf format spec",
+  "description": "Export Revit and IFC data to a standard PDF that keeps the drawing and bim sidecars together. bim-pdf is an open, vendor-neutral format -- no new container, no viewer lock-in.",
+  "url": "https://bimpdf.com/",
+  "image": "https://bimpdf.com/og-image.png",
+  "inLanguage": "en",
+  "keywords": "BIM to PDF, bim-pdf, BIM data in PDF, Revit export PDF, IFC PDF, embed BIM metadata, vendor neutral BIM interchange, open BIM PDF format",
+  "author": { "@type": "Organization", "name": "bim-cli", "url": "https://bimcli.com" },
+  "publisher": { "@type": "Organization", "name": "bim-cli", "url": "https://bimcli.com" },
+  "about": "An open, additive format for keeping bim sidecars attached to a standard PDF so the drawing and data travel together."
+}
+</script>
+<link rel="stylesheet" href="/kit/tokens.css">
+<link rel="stylesheet" href="/kit/base.css">
+<style>
+  /* bimpdf.com on the Broadsheet kit (packages/ui-kit, copied to /kit/ at build time by gen-version.mjs).
+     The kit draws the page: the reading column (.bk-page--reading), the masthead and nav, the hero, the bare
+     h2 / list / table / pre looks (reading-density element defaults), cards, captions, link rows, the footer -- and
+     the spot colour, from data-bk-property="bimpdf". This block is layout only, every value a --bk-* token. */
+  html { scroll-behavior: smooth; }
+
+  /* ---- hero: the logo beside the text on a wide screen ---- */
+  .hero { display: grid; grid-template-columns: 1fr; justify-items: start; }
+  .hero .logo { width: 96px; height: 96px; margin-bottom: var(--bk-space-4); }
+  .hero h1 { margin-bottom: var(--bk-space-2); }
+  @media (min-width: 720px) {
+    .hero { grid-template-columns: auto 1fr; column-gap: var(--bk-space-5); }
+    .hero .logo { grid-row: 1 / span 6; width: 132px; height: 132px; margin: 0; }
+  }
+
+  /* ---- element-class registry: one ruled grid, like the kit's tiles ---- */
+  .classes {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin: var(--bk-space-3) 0;
+    border-top: var(--bk-rule) solid var(--bk-line); border-left: var(--bk-rule) solid var(--bk-line);
+  }
+  .bk-page .classes code {
+    display: block; padding: var(--bk-space-2); text-align: center; font-size: var(--bk-type-data-md-size);
+    background: transparent; border: 0;
+    border-right: var(--bk-rule) solid var(--bk-line); border-bottom: var(--bk-rule) solid var(--bk-line);
+  }
+
+  /* ---- the add-in card: its icon beside the text ---- */
+  .plugin { display: flex; gap: var(--bk-space-5); align-items: flex-start; }
+  .plugin img { width: 76px; height: 76px; flex: none; }
+  .plugin h2 { margin-top: 0; }
+  @media (max-width: 520px) { .plugin { flex-direction: column; } }
+
+  /* ---- footer: the brand line ---- */
+  .foot-logo { width: 16px; height: 16px; vertical-align: middle; margin-right: var(--bk-space-1); }
+</style>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SBS99Z1JHX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-SBS99Z1JHX');
+</script>
+</head>
+<body class="bk-page bk-page--reading" data-bk-density="reading" data-bk-property="bimpdf">
+
+<header class="bk-masthead">
+  <nav class="bk-nav" aria-label="Site">
+    <a class="bk-logo" href="/"><img src="/logo.svg" alt="" width="32" height="32"><span class="bk-wordmark">bim&middot;pdf</span></a>
+    <a href="/spec">Spec</a>
+    <a href="#try">Try it</a>
+    <a href="https://bimcli.com">bim-cli</a>
+  </nav>
+</header>
+
+  <section class="hero bk-hero">
+    <img class="logo" src="/logo.svg" alt="bim-pdf -- a PDF that carries bim data">
+    <p class="bk-kicker">open format &middot; bim-pdf v1.0</p>
+    <h1>BIM to PDF</h1>
+    <p class="bk-mono bk-muted">a standard PDF that keeps the bim data &mdash; bimpdf.com</p>
+    <p class="bk-lead">Exporting a BIM model to PDF normally splits the handoff: the drawing goes in one file and the model data goes somewhere else. bim-pdf keeps both together in a normal PDF that still opens in Acrobat, Bluebeam, or any standard viewer.</p>
+    <div class="bk-actions">
+      <a class="bk-button bk-button--primary bk-button--lg" href="/downloads/bim-pdf-addin.zip" download>&#x1F4BE; Download the Revit add-in</a>
+      <a class="bk-button bk-button--lg" href="/spec">Read the spec</a>
+    </div>
+    <p class="bk-caption">free download &middot; Revit 2025 / 2026 &middot; ~0.7 MB</p>
+  </section>
+
+  <main>
+  <p>No new container format. No viewer lock-in. The PDF travels as-is, the sidecars stay attached to the drawing revision that produced them, and bim-pdf-aware tools can extract the embedded element data, marks, levels, and IFC subset from that same file.</p>
+
+  <section id="spec">
+  <h2>What BIM to PDF Means</h2>
+  <p>BIM models -- whether authored in Revit or described in IFC -- carry rich structured data: element types, dimensions, materials, levels, and relationships between objects. A standard PDF export discards all of that and produces a flat drawing.</p>
+  <p>"BIM to PDF" describes the goal of exporting a BIM model into a PDF that retains queryable element data alongside the visible geometry. The result looks identical to any PDF viewer and carries the bim layer as an invisible, additive attachment -- present for tools that know how to read it, harmless to those that do not, and harder to separate from the drawing during handoff.</p>
+  <p>bim-pdf is the open format spec that defines how that bim data is structured, named, and embedded.</p>
+  </section>
+
+  <h2>Exporting Revit and IFC BIM Data to PDF</h2>
+  <p>Revit's built-in PDF export produces a flat drawing with no element data. The bim-pdf Revit add-in fills that gap: it exports a normal Revit sheet to PDF while attaching bim elements -- walls, columns, doors, slabs, and more -- as structured JSON sidecars in the same file.</p>
+  <p>Each element carries its class (from the v1.0 registry), label, level, and mark. A spatial overlay (marks.json) links every element to its bounding box on the sheet, so downstream tools can query "which wall is at this location" without re-parsing geometry after they extract the sidecars.</p>
+  <p>IFC models map to the same element-class registry. The optional ifc-subset.json sidecar carries raw IFC entity data alongside the normalized elements.json anchor, enabling cross-tool interoperability without requiring a separate file format or container.</p>
+  <h3>bim revit export PDF with data</h3>
+  <p>The <code>bim revit export</code> command (and the matching Revit add-in button) produces a bim-pdf in one step: a compliant PDF sheet with up to six bim sidecars embedded -- elements, marks, scales, levels, title block, and IFC subset.</p>
+
+  <h2>Embedded bim Metadata and IFC Elements in PDF</h2>
+  <p>PDF supports file attachments through its standard EmbeddedFiles mechanism -- no new container. bim-pdf also uses native PDF constructs (associated files, an XMP label, PageLabels, outlines), as the specification (see Spec in the nav) describes. It uses this to embed JSON sidecars alongside the page geometry.</p>
+  <p>The anchor is always elements.json: a list of every bim element with its class, label, and provenance. Additional sidecars are optional and additive -- marks link elements to page positions, scales calibrate real-world dimensions, levels define building floors, and ifc-subset carries IFC entity data for cross-tool use.</p>
+  <p>Any PDF library that supports EmbeddedFile streams can read or write a bim-pdf. No proprietary parser, no SDK, no account required.</p>
+  <h3>Open bim-pdf format</h3>
+  <p>The bim-pdf spec is public and unencumbered. Any tool can produce or consume it: read the spec, embed the sidecars, and it works. The element-class registry (v1.0) is stable; new sidecars are additive and do not break existing readers.</p>
+
+  <h2>Vendor-Neutral BIM Interchange Format</h2>
+  <p>A bim-pdf file is a handoff artifact, not a proprietary export. It opens in any compliant PDF reader without plugins. The bim data layer is additive -- removing the attachments leaves a valid, complete PDF. No viewer lock-in, no cloud round-trip, no license check.</p>
+  <p>Because the format builds on standard PDF EmbeddedFiles, it is implementation-neutral: Python, JavaScript, C#, or any language with a PDF library can produce or consume it. The JSON schemas are open, the class registry is versioned and stable, and the format carries no account or authentication dependency.</p>
+  <p>This makes bim-pdf viable as a neutral interchange format between Revit, IFC, and downstream AEC workflows -- a PDF that travels like a PDF but carries bim data wherever it goes.</p>
+  <p>The main benefit is operational: one file travels, the sidecars stay bound to the PDF revision that generated them, and recipients do not need a parallel file-sharing convention just to keep drawing and data in sync.</p>
+
+  <section id="try" class="bk-cards">
+  <article class="plugin">
+    <img src="/logo.svg" alt="bim-pdf Revit add-in icon">
+    <div>
+      <h2>Try it: free Revit add-in</h2>
+      <p>See bim-pdf on your own model. The <strong>bim-pdf Revit add-in</strong> adds a <strong>bim-pdf</strong> ribbon tab with an <em>Export</em> button and a live sheet preview &mdash; it writes a normal PDF of your sheets with the bim data sidecars attached: elements, marks, scales, levels and title-block metadata (the v1.0 format below), plus printed schedules as data and &mdash; on any sheet carrying a 3D view &mdash; a live glTF model embedded alongside the flat drawing. Free to use, for <strong>Revit 2025 and 2026</strong>.</p>
+      <a class="bk-button bk-button--primary bk-button--lg" href="/downloads/bim-pdf-addin.zip" download>&#x1F4BE; Download for Revit 2025 / 2026</a>
+      <p class="bk-caption">Unzip, run <code>Install.ps1</code>, restart Revit, then open the <strong>bim-pdf</strong> ribbon tab and click <strong>Export</strong>. The result opens in any PDF viewer &mdash; and lights up element-by-element in a bim-pdf-aware viewer.</p>
+    </div>
+  </article>
+  </section>
+
+  <h2>Element Classes</h2>
+  <p>Every element carries a <code>class</code> field drawn from the v1.0 registry. Use <code>other</code> with a required <code>class_hint</code> for anything outside the registry.</p>
+
+  <h3>Structural</h3>
+  <div class="classes">
+    <code>wall</code><code>curtain-wall</code><code>slab</code><code>floor</code><code>column</code><code>beam</code><code>brace</code><code>footing</code>
+  </div>
+  <p class="bk-caption"><code>slab</code> = structural deck or slab-on-grade. <code>floor</code> = interior finish assembly.</p>
+
+  <h3>Envelope</h3>
+  <div class="classes">
+    <code>roof</code><code>door</code><code>window</code><code>curtain-panel</code><code>curtain-mullion</code>
+  </div>
+
+  <h3>Interior</h3>
+  <div class="classes">
+    <code>ceiling</code><code>room</code><code>stair</code><code>ramp</code>
+  </div>
+
+  <h3>FF&amp;E</h3>
+  <div class="classes">
+    <code>furniture</code><code>casework</code><code>equipment</code>
+  </div>
+
+  <h3>Fallback</h3>
+  <div class="classes">
+    <code>other</code>
+  </div>
+  <p class="bk-caption">Requires <code>class_hint</code>: the producer&rsquo;s native category name. MEP excluded from v1.0.</p>
+
+  <h2>Sidecar Documents</h2>
+  <p>Sidecars are JSON files embedded as PDF attachments. <code>elements.json</code> is the anchor; all other sidecars are optional and listed in dependency order.</p>
+  <p><code>README-agent.md</code> is a reserved, recommended attachment name for agent-facing authority guidance. Producers SHOULD embed it under that exact filename so consumers that list attachments by name can surface it first.</p>
+
+  <div class="bk-table-wrap" role="region" aria-label="Sidecar documents" tabindex="0">
+  <table>
+  <thead><tr><th>Filename</th><th>Purpose</th><th>Key fields</th></tr></thead>
+  <tbody>
+  <tr><td><code>elements.json</code></td><td>bim element list + document metadata. Anchor for all other sidecars.</td><td><code>bim-pdf</code>, <code>meta</code> (project_id, document_id, exported_at, producer), <code>source</code> (format, version, id_strategy), <code>class_registry</code>, <code>elements[]</code></td></tr>
+  <tr><td><code>marks.json</code></td><td>Spatial overlay linking elements to page regions. Requires elements.json.</td><td><code>coordinate_space</code>, <code>marks[]</code> (element_id, page, bbox [x0 y0 x1 y1 in PDF points], view_type)</td></tr>
+  <tr><td><code>scales.json</code></td><td>Per-page calibration and view placements. Maps PDF points to real-world units; each placed view (viewport) carries its view id and, from v1.13, the section / elevation / callout / detail heads drawn in it (view links: a head points at a view id, never at a sheet number).</td><td>Keyed by 1-indexed page number. Each entry is a <code>CalibrationScale</code> (pixel-distance + real-distance + unit) or <code>RatioScale</code> (ratio + unit), or a page set with <code>viewports[]</code> {rect, scale, name, view_id, primary_view_id, <code>refs[]</code> {marker_id, kind, view_id, view_name, target_sheet_number, heads, bbox}} and <code>unresolved</code> (that page's heads the producer could not resolve).</td></tr>
+  <tr><td><code>levels.json</code></td><td>Building level definitions with elevation.</td><td><code>levels[]</code> (id [UUID v5], name, elevation [Quantity])</td></tr>
+  <tr><td><code>titleblock.json</code></td><td>Sheet metadata plus structured sheet-info blocks for zoning, legends, notes, and tabulations.</td><td><code>sheets[]</code> (legacy sheet_number/sheet_name fields plus <code>titleblock</code>, <code>zoning_data_block</code>, <code>area_tabulation[]</code>, <code>legend[]</code>, <code>notes[]</code>)</td></tr>
+  <tr><td><code>annotations.json</code></td><td>Human and agent markup. Requires elements.json.</td><td><code>annotations[]</code> (id, page, type [polygon/rectangle/text/callout/cloud/stamp/...], author [human|agent], created_at, element_id, style, measurement)</td></tr>
+  <tr><td><code>pages.json</code></td><td>Page manifest (v1.12, optional). Lets one PDF combine pages from several source documents (a Revit model, a spreadsheet, a Rhino file). A record's source is the source of its page; element ids are scoped by source document.</td><td><code>meta</code>, <code>pages[]</code> (page [1-indexed, contiguous], page_id [document_id:native_key, unique], native_key, sheet_number, label, <code>source</code> {driver, document_id, producer, exported_at, revision, format}, geometry)</td></tr>
+  <tr><td><code>ifc-subset.json</code></td><td>IFC data subset for cross-tool interop. Optional; omit if not available.</td><td>Raw IFC entity subset keyed by element id. Schema is open in v1.0.</td></tr>
+  </tbody>
+  </table>
+  </div>
+
+  <h2>How to Implement</h2>
+  <p>To produce a bim-pdf, embed sidecars as standard PDF file attachments using the PDF <code>EmbeddedFiles</code> names tree. Any PDF library that supports <code>/EmbeddedFile</code> streams works.</p>
+  <pre><code>// Minimal elements.json
+{
+  "bim-pdf": "1.0",
+  "meta": {
+    "project_id": "uuid-v4",
+    "document_id": "uuid-v4",
+    "exported_at": "2026-01-01T00:00:00Z",
+    "producer": "my-tool/1.0"
+  },
+  "source": {
+    "format": "revit",
+    "version": "2024",
+    "id_strategy": "revit-stable-element-id"
+  },
+  "class_registry": "1.0",
+  "elements": [
+    { "id": "1234", "class": "wall", "label": "Exterior CMU 8\"", "level": "Level 1" }
+  ]
+}</code></pre>
+  <p>Embed the JSON as a file attachment named exactly <code>elements.json</code>. Add additional sidecar files as needed. The attachment name is the sidecar identifier &mdash; do not rename.</p>
+  <p>When you need agent-facing authority guidance alongside the sidecars, embed a Markdown attachment named exactly <code>README-agent.md</code>. Producers SHOULD use that reserved filename for notes such as "printed sheets are contractually authoritative" so attachment-listing consumers can recognize and prioritize it consistently.</p>
+  <p>To read a bim-pdf, walk the <code>EmbeddedFiles</code> names tree (flat or <code>/Kids</code>) and ignore names you do not know. Detect the format by the XMP label and associated-file markers first, and by the <code>elements.json</code> name last; see the Spec page.</p>
+
+  <h2>Consumers</h2>
+  <p>Tools in the bim-cli ecosystem produce and consume bim-pdf files:</p>
+  <div class="bk-table-wrap" role="region" aria-label="Consumers" tabindex="0">
+  <table>
+  <thead><tr><th>Tool</th><th>Description</th></tr></thead>
+  <tbody>
+  <tr><td><code>bim revit export</code></td><td>Export a Revit sheet to bim-pdf &mdash; produces a PDF with 6 bim sidecars embedded</td></tr>
+  <tr><td><code>bim pdf pack</code></td><td>Embed sidecar JSON files into an existing PDF</td></tr>
+  <tr><td><code>bim pdf extract</code></td><td>Extract sidecar JSON files from a bim-pdf</td></tr>
+  <tr><td><code>bim pdf list</code></td><td>List embedded attachments in a PDF</td></tr>
+  <tr><td><code>bim pdf validate</code></td><td>Validate a bim-pdf: schema correctness, cross-references, class registry</td></tr>
+  <tr><td><code>bim pdfv open</code></td><td>Open in pdfv viewer: bim element overlay, element panel, marks filtered by class</td></tr>
+  </tbody>
+  </table>
+  </div>
+  <nav class="bk-linkrow" aria-label="Install">
+    <span class="bk-label">Install, no account required</span>
+    <a href="https://bimcli.com">bimcli.com</a>
+  </nav>
+
+  <h2>Format Principles</h2>
+  <ul>
+    <li><strong>PDF-first:</strong> any compliant PDF reader opens the file without modification.</li>
+    <li><strong>Additive:</strong> sidecars are attachments &mdash; removing them leaves a valid PDF.</li>
+    <li><strong>Stable IDs:</strong> element IDs must not change across re-exports of the same model version.</li>
+    <li><strong>Progressive:</strong> only <code>elements.json</code> is required. Implement one sidecar at a time.</li>
+    <li><strong>Open:</strong> no registry, no auth. Spec text CC-BY-4.0, schemas Apache-2.0.</li>
+  </ul>
+  </main>
+
+<footer class="bk-footer">
+  <p><img class="foot-logo" src="/favicon.svg" alt="">bim&middot;pdf &mdash; an open format for AEC PDF data</p>
+  <nav class="bk-linkrow" aria-label="Footer">
+    <a href="https://bimcli.com">bim-cli</a>
+    <a href="/downloads/bim-pdf-addin.zip" download>Revit add-in</a>
+  </nav>
+</footer>
+
+</body>
+</html>

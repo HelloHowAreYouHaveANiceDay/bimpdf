@@ -1,0 +1,187 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy main to bimpdf.com (Cloudflare Worker bim-pdf-worker)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  standards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: node .standards/check.mjs
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/vendor-sums.mjs --check
+      - run: npm test
+      - run: npm run build
+
+  # AC9: the public validator runs on examples/ (also covered by `npm test`; this job fails by name).
+  validate-examples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node validator/bimpdf-validate.mjs examples/*.bim.pdf
+
+  # AC10: the archival example passes veraPDF PDF/A-3b (pinned release, installer sha256 checked).
+  verapdf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: echo "VERAPDF=$(bash scripts/install-verapdf.sh "$RUNNER_TEMP/verapdf")" >> "$GITHUB_ENV"
+      - run: node scripts/verapdf-check.mjs
+
+  ci-ok:
+    if: always()
+    needs: [standards, test, validate-examples, verapdf]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needs: $RESULTS"
+          case " $RESULTS " in *" failure "*|*" cancelled "*|*" skipped "*) exit 1 ;; esac
+
+  deploy-preview:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    needs: [test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - id: deploy
+        run: |
+          set -o pipefail
+          npx wrangler deploy --env preview 2>&1 | tee "$RUNNER_TEMP/wrangler-out.txt"
+          URL=$(sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/wrangler-out.txt" | grep -o 'https://[^ ]*workers\.dev' | tail -1)
+          echo "preview_url=$URL" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Preview deployed: ${process.env.PREVIEW_URL}`
+            })
+
+  # Cutover done (PLAN S5/S6): pdf-bim's bimpdf-deploy.yml is gone, so main pushes deploy from here.
+  deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy))
+    needs: [ci-ok]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run build
+      - run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: verify published schemas match the repo
+        # `wrangler deploy` returns before every edge serves the new assets, so each file is POLLED (cache-busted,
+        # 404 tolerated) until it matches, within one shared WINDOW (seconds) for the whole check.
+        env:
+          WINDOW: 300
+          DELAY: 15
+        run: |
+          set -uo pipefail
+          fail=0
+          deadline=$((SECONDS + WINDOW))
+          for f in schema/*.json; do
+            name=$(basename "$f")
+            local_hash=$(sha256sum "$f" | cut -d' ' -f1)
+            i=0
+            while :; do
+              i=$((i + 1))
+              remote_hash=$(curl -fsSL -H 'Cache-Control: no-cache' "https://bimpdf.com/schema/$name?v=${GITHUB_SHA}-$i" | sha256sum | cut -d' ' -f1) || remote_hash=unreachable
+              [ "$local_hash" = "$remote_hash" ] && break
+              [ "$SECONDS" -ge "$deadline" ] && break
+              echo "waiting: $name not live yet (attempt $i, got $remote_hash)"
+              sleep "$DELAY"
+            done
+            if [ "$local_hash" != "$remote_hash" ]; then
+              echo "::error::schema drift: https://bimpdf.com/schema/$name sha256=$remote_hash does not match repo sha256=$local_hash (still wrong after ${WINDOW}s)"
+              fail=1
+            else
+              echo "ok: $name matches ($local_hash)"
+            fi
+          done
+          exit $fail
+      - name: verify /version.json is this commit
+        env:
+          WINDOW: 300
+        run: |
+          deadline=$((SECONDS + WINDOW))
+          while :; do
+            live=$(curl -fsSL -H 'Cache-Control: no-cache' "https://bimpdf.com/version.json?v=${GITHUB_SHA}-$SECONDS" | grep -o '"commit": *"[0-9a-f]*"' | grep -o '[0-9a-f]\{7,40\}' || true)
+            [ "$live" = "$GITHUB_SHA" ] && { echo "ok: live commit $live"; exit 0; }
+            [ "$SECONDS" -ge "$deadline" ] && { echo "::error::live /version.json commit '$live' != $GITHUB_SHA"; exit 1; }
+            sleep 15
+          done

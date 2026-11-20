@@ -1,0 +1,140 @@
+{
+  "$comment": "Review REQUEST contract v1 (2026-10-06, wiki spec--review-revamp R5; build record R5-FINAL). The reviewer's unit of work is the REQUEST a Dispatch creates (projects/{p}/requests/{trace_id}); the OP chain (projects/{p}/operations/{op_id}, append-only per op) carries the model state; ONE service (apps/pdfmarkuptool/functions/src/review/requests.ts + requestStore.ts) moves both, and nothing else writes either. Ink is the project's markups (projects/{p}/documents/{d}/markups/{id}) plus `request_id`; owned ink (request_id set, its request not `editing`) takes no client write. Every rule the engine applies is a row below: lookup by verb (+ case) -> the rows whose `from` holds the status of `record` (`request` or `op`; `creates` rows need no request) -> without a case, a caseless row wins over cased ones, else case-required -> the first row listing the actor. Invariant keys: inkLock set|clear (ink request_id written in the same transaction; set refuses `owned`), lease take|renew|clear|drop (take mints a new token; renew and clear CAS on the caller's token -> `lease-lost`; drop removes a lease without a token: a reviewer's Release), takeover (a take from a leased status needs the lease expired or held by the same worker), cas (call fields that must equal the record's current value), createsOp (a new op in the same transaction; `of` from the latestOp entry that matched), latestOp (the request's latest op must match one entry), latestOpNot (its status must not be one of these), notReleased, setsReleased, attemptsBelow / attemptsInc / renderAttemptsInc (limits), alsoRequest (D8: the same verdict moves the request too), keepsStatus, noHistory, noCalls (beats keep no idempotency entry), message (the thread entry type). The reviewer's REPLY (2026-10-07) is `request.post [correction]`: from proposed, needs-you, or a failed apply it sends the request back to the drafter (queued -> proposal n+1). RELEASE is the one way to give ink back: before Accept and after a failed apply (`failed-apply`: nothing was applied) it cancels the request and frees the ink; once a change landed (`accepted`) it hides the ink with the request; after a Restore took the change back out (`restored`, 2026-10-09: a restore applied or rendered, or a failed reapply on top of one -- the model no longer holds the change) it cancels the request and frees the ink like `failed-apply`, so the reviewer's ink comes back free to edit and Send again. `request.reopen` stays in the table (records already `editing` still Send again) but no client offers it. Vendored byte-identical to apps/pdfmarkuptool/functions/src/review/ (requestContract.test.ts), pdf-cli internal/reviewcore/ and the drafter's scripts/worker/ (R5-1 part 2 / R5-2). R6 (2026-10-07, additive, requestVersion unchanged; wiki spec--review-revamp R6): the same records on Firestore -- number.counterDoc (the counter off the project doc), limits.docBytes (refusal too-large), refusal contention (a store transaction that kept aborting; retry with the same op_id), reads worker.poll, and clientWrites (what a client may not write on a gated project, for firestore.rules, the local guard and the SPA alike). 2026-10-08 (additive): `progress` + limits.progress -- the live-steps line, until then hand-typed in the engine, the drafter and pdf-cli. 2026-10-09 (requestVersion unchanged, like the 2026-10-07 Release split; only a reviewer calls request.release): the `restored` Release case, split out of `accepted` -- Release after a successful Restore gave the ink back hidden, throwing the reviewer's intent away (prod tr-mec3fpo4kplia4lhaklf).",
+  "requestVersion": 1,
+  "collections": { "requests": "requests", "operations": "operations", "markups": "markups" },
+  "gate": { "field": "reviewCore", "value": 2 },
+  "inkField": "request_id",
+  "number": {
+    "$comment": "U2 (2026-10-07): the request's per-project NUMBER, the `#4` a reviewer reads on the canvas badge, the rail row and the toasts. The creating move assigns it in its own transaction: 1 + the project doc's `counter` (the highest number assigned so far; absent = 0), and writes the counter back in that transaction, so two concurrent Dispatches get distinct numbers (the second one's transaction retries). Never reused, never changed by a later verb; a released or cancelled request keeps its number. Optional on a record: requests created before this field render without a number. The counter is service-only (firestore.rules, local/src/opsRules.ts). R6: the counter lives in its own doc, requests/{counterDoc} (field `counter`), not on the project doc -- every request transaction reads the project doc for the gate, so a counter there tied each Dispatch to every other request transaction; a project-doc `counter` from before R6 is read once as the floor. counterDoc is not a request: readers skip any id without the trace prefix.",
+    "field": "number",
+    "counter": "requestNumber",
+    "counterDoc": "_counter"
+  },
+  "clientWrites": {
+    "$comment": "R6: what a CLIENT may not write on a project with the gate -- one list for the three enforcers: firestore.rules (the helpers apps/pdfmarkuptool/scripts/gen-rules-review-request.mjs generates), the local server's guard (local/src/opsRules.ts) and the SPA's gated write path (services/markupFields.ts strips them). inkFields: never written by a client, create or update -- the ink field only the request service writes (inkField) and the v8 review fields the SPA projects onto ink in memory (the R2 dispatch lock + its released flag, trace_id). inkStateFields: the v8 review state the SPA also projects: an update never touches it, a create carries at most the fresh state every create pipeline writes (the v8 default status, an empty history). refusedWhenGated: the v8 client collections a gated project closes (its reviewer actions go through the request service). On EVERY project: inkField, gate.field and number.counter are service-only, and the requests collection is member-read and service-written.",
+    "inkFields": ["request_id", "dispatch_id", "released", "trace_id"],
+    "inkStateFields": ["status", "status_history"],
+    "refusedWhenGated": ["reviewer_events"]
+  },
+  "ids": {
+    "$comment": "D2: deterministic ids so a retried call lands on the same record. trace_id = trace.prefix + base32(sha256(projectId + ':' + op_id))[0..length]; a created op = op.prefix + base32(sha256(trace_id + ':' + kind + ':' + n + ':' + seq))[0..length] (n = the accepted proposal, seq = the request's op count before it). base32 = RFC 4648, lowercase alphabet below, no padding. op_id is the CALLER's call id (one per tap / per worker step).",
+    "alphabet": "abcdefghijklmnopqrstuvwxyz234567",
+    "length": 20,
+    "trace": { "prefix": "tr-" },
+    "op": { "prefix": "op-" },
+    "callPattern": "^[A-Za-z0-9_-]{6,64}$"
+  },
+  "actors": {
+    "admin": { "byType": "human" },
+    "editor": { "byType": "human" },
+    "drafter": { "byType": "agent" }
+  },
+  "statuses": {
+    "request": {
+      "queued": { "initial": true },
+      "working": { "leased": true },
+      "proposed": {},
+      "needs-you": {},
+      "editing": { "inkEditable": true },
+      "accepted": {},
+      "cancelled": { "terminal": true, "inkFree": true }
+    },
+    "op": {
+      "queued": { "initial": true },
+      "applying": { "leased": true },
+      "applied": {},
+      "rendered": { "terminal": true },
+      "failed": { "terminal": true }
+    }
+  },
+  "opKinds": ["apply", "restore", "reapply"],
+  "stages": ["reading", "drafting", "verifying"],
+  "progress": {
+    "$comment": "2026-10-08 (the live-steps line, #481): `field` is the drafter's one-line progress on a working request (\"Step 4 . 0:31 -- Searching the content library\"). Only `verb` (request.beat, holder only) writes it: a string of at most limits.progress, kept by a beat that omits it (the lease thread's beats), dropped with `stage` when the request leaves working. Display only (the rail's state line); nothing reads it as state.",
+    "field": "progress_text",
+    "verb": "request.beat"
+  },
+  "scopes": ["selection"],
+  "messageTypes": ["note", "correction", "reason", "proposal", "decision"],
+  "proposal": {
+    "$comment": "D6: alternatives[0] is the primary request; each alternative carries its own footprint + cursor (required for the drivers below) and its own inverse (no restore_plan -> no Restore). 2026-10-17 (additive, requestVersion unchanged; wiki spec--drafter-photo-survey 3e): an alternative may carry `items` [{key, label, approx?, warning?}] (at most maxItems, keys unique, label and warning at most limits.summary) -- DISPLAY DATA only, the card's checklist: nothing reads it at Accept and no op carries it; unticking items posts an ordinary request.post [correction] \"Leave out: <labels>\". 2026-10-19 (additive, requestVersion unchanged; wiki spec--drafter-product-survey \"The card, Accept, Restore\", A1, slice S8): an item may carry ONE `image` {asset, w, h} -- its evidence picture (photo crop | product page image | our model); `asset` is a promoted photo's reference in the form a markup's media item uses (64 lowercase hex = sha256 of the JPEG at projects/{p}/assets/{asset}.jpg; itemImage.assetRe = asset-contract.json assetRe), w and h integer pixels 1..itemImage.maxEdge (= asset-contract.json limits.edge); other keys are dropped. DISPLAY DATA only, like `items`: nothing reads it at Accept and no op carries it; a malformed image is refused bad-args like a malformed item.",
+    "footprintDrivers": ["revit"],
+    "maxAlternatives": 4,
+    "maxItems": 40,
+    "itemImage": { "assetRe": "^[0-9a-f]{64}$", "maxEdge": 4096 }
+  },
+  "limits": {
+    "ink": { "min": 1, "max": 200 },
+    "leaseSeconds": 600,
+    "calls": 50,
+    "attempts": 2,
+    "renderAttempts": 3,
+    "text": 2000,
+    "summary": 600,
+    "progress": 600,
+    "docBytes": 921600
+  },
+  "refusals": ["unknown-verb", "illegal-transition", "forbidden-actor", "case-required", "stale-version", "bad-args", "bad-message", "not-found", "not-enabled", "owned", "lease-held", "lease-lost", "too-large", "contention"],
+  "moves": [
+    { "verb": "request.dispatch", "record": "request", "from": [], "to": "queued", "actors": ["admin", "editor"], "creates": true, "inkLock": "set" },
+    { "verb": "request.claim", "record": "request", "from": ["queued"], "to": "working", "actors": ["drafter"], "lease": "take" },
+    { "verb": "request.claim", "case": "reclaim", "record": "request", "from": ["working"], "to": "working", "actors": ["drafter"], "lease": "take", "takeover": true },
+    { "verb": "request.beat", "record": "request", "from": ["working"], "keepsStatus": true, "actors": ["drafter"], "lease": "renew", "noHistory": true, "noCalls": true },
+    { "verb": "request.propose", "record": "request", "from": ["working"], "to": "proposed", "actors": ["drafter"], "lease": "clear", "proposal": "new", "message": "proposal" },
+    { "verb": "request.needs_you", "record": "request", "from": ["working"], "to": "needs-you", "actors": ["drafter"], "lease": "clear", "error": "required", "message": "reason" },
+    { "verb": "request.accept", "record": "request", "from": ["proposed"], "to": "accepted", "actors": ["admin"], "cas": ["n", "alt"], "createsOp": { "kind": "apply" }, "message": "decision" },
+    { "verb": "request.reject", "record": "request", "from": ["proposed"], "to": "queued", "actors": ["admin", "editor"], "cas": ["n"], "message": "decision" },
+    { "verb": "request.reopen", "record": "request", "from": ["needs-you"], "to": "editing", "actors": ["admin", "editor"], "message": "decision" },
+    { "verb": "request.reopen", "case": "after-op", "record": "request", "from": ["accepted"], "to": "editing", "actors": ["admin", "editor"], "notReleased": true, "latestOp": [{ "kind": "apply", "status": "failed" }, { "kind": "restore", "status": "rendered" }], "message": "decision" },
+    { "verb": "request.send", "record": "request", "from": ["editing"], "to": "queued", "actors": ["admin", "editor"], "inkLock": "set" },
+    { "verb": "request.release", "record": "request", "from": ["queued", "working", "proposed", "needs-you", "editing"], "to": "cancelled", "actors": ["admin", "editor"], "inkLock": "clear", "lease": "drop", "message": "decision" },
+    { "verb": "request.release", "case": "accepted", "record": "request", "from": ["accepted"], "keepsStatus": true, "actors": ["admin", "editor"], "notReleased": true, "latestOp": [{ "kind": "apply", "status": "applied" }, { "kind": "apply", "status": "rendered" }, { "kind": "restore", "status": "failed" }, { "kind": "reapply", "status": "applied" }, { "kind": "reapply", "status": "rendered" }], "setsReleased": true, "message": "decision" },
+    { "verb": "request.release", "case": "restored", "record": "request", "from": ["accepted"], "to": "cancelled", "actors": ["admin", "editor"], "notReleased": true, "latestOp": [{ "kind": "restore", "status": "applied" }, { "kind": "restore", "status": "rendered" }, { "kind": "reapply", "status": "failed" }], "inkLock": "clear", "message": "decision" },
+    { "verb": "request.release", "case": "failed-apply", "record": "request", "from": ["accepted"], "to": "cancelled", "actors": ["admin", "editor"], "notReleased": true, "latestOp": [{ "kind": "apply", "status": "failed" }], "inkLock": "clear", "message": "decision" },
+    { "verb": "request.post", "case": "note", "record": "request", "from": ["queued", "working", "proposed", "needs-you", "editing", "accepted"], "keepsStatus": true, "actors": ["admin", "editor", "drafter"], "message": "note", "requiresText": true, "noHistory": true },
+    { "verb": "request.post", "case": "correction", "record": "request", "from": ["proposed", "needs-you"], "to": "queued", "actors": ["admin", "editor"], "message": "correction", "requiresText": true },
+    { "verb": "request.post", "case": "correction", "record": "request", "from": ["accepted"], "to": "queued", "actors": ["admin", "editor"], "notReleased": true, "latestOp": [{ "kind": "apply", "status": "failed" }], "message": "correction", "requiresText": true },
+    { "verb": "request.post", "case": "correction", "record": "request", "from": ["queued", "working", "editing"], "keepsStatus": true, "actors": ["admin", "editor"], "message": "correction", "requiresText": true, "noHistory": true },
+    { "verb": "op.restore", "record": "request", "from": ["accepted"], "keepsStatus": true, "actors": ["admin"], "latestOp": [{ "kind": "apply", "status": "rendered", "of": "self" }, { "kind": "reapply", "status": "rendered", "of": "self" }, { "kind": "restore", "status": "failed", "of": "of_op" }], "createsOp": { "kind": "restore", "restorable": true } },
+    { "verb": "op.reapply", "record": "request", "from": ["accepted"], "keepsStatus": true, "actors": ["admin"], "latestOp": [{ "kind": "restore", "status": "rendered", "of": "self" }, { "kind": "reapply", "status": "failed", "of": "of_op" }], "createsOp": { "kind": "reapply" } },
+    { "verb": "op.begin", "record": "op", "from": ["queued"], "to": "applying", "actors": ["drafter"], "lease": "take", "attemptsInc": true },
+    { "verb": "op.reclaim", "record": "op", "from": ["applying"], "keepsStatus": true, "actors": ["drafter"], "lease": "take", "takeover": true },
+    { "verb": "op.beat", "record": "op", "from": ["applying"], "keepsStatus": true, "actors": ["drafter"], "lease": "renew", "noHistory": true, "noCalls": true },
+    { "verb": "op.end", "case": "applied", "record": "op", "from": ["applying"], "to": "applied", "actors": ["drafter"], "lease": "clear" },
+    { "verb": "op.end", "case": "failed", "record": "op", "from": ["applying"], "to": "failed", "actors": ["drafter"], "lease": "clear", "error": "required" },
+    { "verb": "op.end", "case": "conflict", "record": "op", "from": ["applying"], "to": "failed", "actors": ["drafter"], "lease": "clear", "error": "required", "kinds": ["apply"], "alsoRequest": { "from": ["accepted"], "to": "working", "lease": "take", "stage": "verifying" } },
+    { "verb": "op.retry", "record": "op", "from": ["applying"], "to": "queued", "actors": ["drafter"], "lease": "clear", "attemptsBelow": "attempts" },
+    { "verb": "op.render", "record": "op", "from": ["applied"], "to": "rendered", "actors": ["drafter"], "requires": ["revision_after"] },
+    { "verb": "op.render", "case": "failed", "record": "op", "from": ["applied"], "keepsStatus": true, "actors": ["drafter"], "error": "required", "renderAttemptsInc": true }
+  ],
+  "reads": {
+    "$comment": "Read verbs (no transaction writes): any member of the project (owner or an active permission of any role) or the drafter.",
+    "requests.list": { "filters": ["status"] },
+    "request.get": { "requires": ["trace_id"] },
+    "ops.list": { "filters": ["request_id", "status"], "requiresOne": ["request_id", "status"] },
+    "worker.poll": { "$comment": "R6: the worker's one read per tick -> {working, queued, ops: {queued, applied}} (requests by status; request-contract ops only)." }
+  },
+  "cardStates": {
+    "$comment": "D9: the card a request shows = its status, and once accepted its latest op (ops sorted by seq). First matching row wins. `stage` overrides the request's stage on the card; `error` = show the op's error.user_text; `renderFailed` applies to a latest op in its `status` whose render_attempts reached limits.renderAttempts. `released` hides the card (history only).",
+    "noRequest": "not-sent",
+    "released": "hidden",
+    "byStatus": {
+      "queued": "drafter",
+      "working": "drafter",
+      "proposed": "proposed",
+      "needs-you": "needs-you",
+      "editing": "editing",
+      "cancelled": "not-sent"
+    },
+    "renderFailed": { "status": "applied", "card": "needs-you", "user_text": "Applied, but the sheet did not refresh" },
+    "accepted": [
+      { "status": ["queued", "applying", "applied"], "card": "drafter", "stage": "applying" },
+      { "status": ["rendered"], "kind": ["apply", "reapply"], "card": "done" },
+      { "status": ["rendered"], "kind": ["restore"], "card": "restored" },
+      { "status": ["failed"], "kind": ["apply"], "card": "needs-you", "error": true },
+      { "status": ["failed"], "kind": ["restore"], "card": "done", "error": true },
+      { "status": ["failed"], "kind": ["reapply"], "card": "restored", "error": true }
+    ],
+    "acceptedNoOp": { "card": "drafter", "stage": "applying" }
+  }
+}
