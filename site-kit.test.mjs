@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 // bimpdf.com is styled by the Broadsheet UI kit (packages/ui-kit). These checks keep it that way:
 // the pages load the kit, the site CSS uses kit tokens only and no raw colour, the kit's spot comes from
-// data-bk-property (never a site override), and the site draws no look the kit owns (bare elements, kit classes).
+// design/tokens.css (never a site override), and the site draws no look the kit owns (bare elements, kit classes).
 
 const appPath = fileURLToPath(new URL('.', import.meta.url))
 // pinned to Broadsheet 1.0.0 (design/vendor/broadsheet/1.0.0, from ui.bimisland.com/kit/1.0.0/)
@@ -23,7 +23,7 @@ const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 const head = (html) => html.slice(0, html.indexOf('</head>'))
 
 const definedVars = new Set(
-  [...(tokensCss + baseCss).matchAll(/(--bk-[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  [...(tokensCss + baseCss).matchAll(/(--ui-[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
 )
 
 for (const page of PAGES) {
@@ -32,23 +32,22 @@ for (const page of PAGES) {
   test(`${page}: loads the kit (tokens, then base) before the site styles`, () => {
     const h = head(html)
     const tokens = h.indexOf('<link rel="stylesheet" href="/kit/tokens.css">')
+    const spot = h.indexOf('<link rel="stylesheet" href="/kit/spot.css">')
     const base = h.indexOf('<link rel="stylesheet" href="/kit/base.css">')
     const style = h.indexOf('<style>')
     assert.ok(tokens >= 0, 'links /kit/tokens.css')
-    assert.ok(base > tokens, 'links /kit/base.css after tokens.css')
+    assert.ok(spot > tokens, 'links /kit/spot.css after tokens.css')
+    assert.ok(base > spot, 'links /kit/base.css after spot.css')
     assert.ok(style > base, 'site <style> comes after the kit')
     // pinned, same-origin copies only: no stylesheet from another origin
     assert.doesNotMatch(h, /<link[^>]+rel="stylesheet"[^>]+href="(https?:)?\/\//)
   })
 
-  test(`${page}: body is the kit root in reading density, the reading column, the bimpdf property`, () => {
-    assert.match(
-      html,
-      /<body class="bk-page bk-page--reading" data-bk-density="reading" data-bk-property="bimpdf">/,
-    )
+  test(`${page}: body is the kit root in reading density, the reading column (the spot is design/tokens.css, no data-bk-property)`, () => {
+    assert.match(html, /<body class="bk-page bk-page--reading" data-bk-density="reading">/)
   })
 
-  test(`${page}: no raw colour (the spot colour is the kit's, from data-bk-property)`, () => {
+  test(`${page}: no raw colour (the spot colour is design/tokens.css)`, () => {
     const css = stripComments(siteCss(html)) + '\n' + styleAttrs(html).join('\n')
     const hexes = [...css.matchAll(/#[0-9a-fA-F]{3,8}\b/g)].map((m) => m[0].toUpperCase())
     assert.deepEqual([...new Set(hexes)], [], 'no raw hex in the site CSS')
@@ -74,7 +73,11 @@ for (const page of PAGES) {
 
   test(`${page}: the spot colour never colours text`, () => {
     const css = stripComments(siteCss(html))
-    assert.doesNotMatch(css, /(^|[;{\s])color\s*:\s*var\(--ui-color-spot\)/, 'color: var(--ui-color-spot)')
+    assert.doesNotMatch(
+      css,
+      /(^|[;{\s])color\s*:\s*var\(--ui-color-spot\)/,
+      'color: var(--ui-color-spot)',
+    )
   })
 
   test(`${page}: every link is a kit tap target or a kit button (no inline text link, no site nav link)`, () => {
@@ -100,12 +103,12 @@ for (const page of PAGES) {
     assert.deepEqual(bad, [])
   })
 
-  test(`${page}: the site writes no kit-owned look -- no --bk-* token, no bare-element or kit-class rule`, () => {
+  test(`${page}: the site writes no kit-owned look -- no --ui-* token, no bare-element or kit-class rule`, () => {
     const css = stripComments(siteCss(html))
     assert.doesNotMatch(
       css,
-      /--bk-[a-z0-9-]+\s*:/,
-      'a site sets no --bk-* token (the spot comes from data-bk-property)',
+      /--ui-[a-z0-9-]+\s*:/,
+      'a site sets no --ui-* token (the spot comes from design/tokens.css)',
     )
     const selectors = [...css.matchAll(/([^{}]+)\{/g)]
       .map((m) => m[1].trim())
@@ -130,15 +133,14 @@ for (const page of PAGES) {
   })
 }
 
-test('the kit (pinned copy) owns the bimpdf spot: light, OS dark and forced dark, on <html> or <body>', () => {
-  const light = tokensCss.match(/\[data-bk-property="bimpdf"\] \{\s*--ui-color-spot: (#[0-9a-f]{6});/)
-  assert.ok(light, 'tokens.css sets the bimpdf spot')
-  const dark = [
-    ...tokensCss.matchAll(/\[data-bk-property="bimpdf"\] \{\s*--ui-color-spot: (#[0-9a-f]{6});/g),
-  ].map((m) => m[1])
-  assert.equal(dark.length, 3, 'light + OS dark + forced dark')
-  assert.match(tokensCss, /:root\[data-theme="dark"\] \[data-bk-property="bimpdf"\]/)
-  assert.match(tokensCss, /:root:not\(\[data-theme="light"\]\) \[data-bk-property="bimpdf"\]/)
+test('design/tokens.css owns the bimpdf spot: light, OS dark and forced dark, and nothing else', () => {
+  const own = readFileSync(join(appPath, 'design/tokens.css'), 'utf8')
+  const spots = [...own.matchAll(/--ui-color-spot:\s*(#[0-9a-f]{6});/g)].map((m) => m[1])
+  assert.deepEqual(spots, ['#9a5414', '#c8721e', '#c8721e'], 'light + OS dark + forced dark')
+  assert.match(own, /:root\[data-theme='dark'\]/)
+  assert.match(own, /@media \(prefers-color-scheme: dark\)/)
+  const declared = [...stripComments(own).matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1])
+  assert.deepEqual([...new Set(declared)], ['--ui-color-spot'], 'only the spot is set')
 })
 
 test('index.html: one-row masthead -- the logo link is the first child of the kit nav (kit 0.4.1), no site brand rule', () => {
