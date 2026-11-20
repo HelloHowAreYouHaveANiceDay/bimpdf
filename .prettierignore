@@ -4,3 +4,4 @@ vendor/
 *.html
 llms.txt
 sitemap.xml
+design/vendor/

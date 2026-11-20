@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url'
 // data-bk-property (never a site override), and the site draws no look the kit owns (bare elements, kit classes).
 
 const appPath = fileURLToPath(new URL('.', import.meta.url))
-// pinned to kit 0.6.5 (0.5.0-0.6.5: chart/board/hatch additions; 0.4.0: the portfolio primitives): check the pages against the copy they ship
-const kitPath = join(appPath, 'vendor/kit/0.6.5')
+// pinned to Broadsheet 1.0.0 (design/vendor/broadsheet/1.0.0, from ui.bimisland.com/kit/1.0.0/)
+const kitPath = join(appPath, 'design/vendor/broadsheet/1.0.0')
 const PAGES = ['index.html', '404.html']
 
 const read = (f) => readFileSync(join(appPath, f), 'utf8')
