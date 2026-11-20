@@ -13,3 +13,4 @@ Static spec site for bimpdf.com, deployed as the Cloudflare Worker `bim-pdf-work
 - Published schema bytes are a contract (pdf-cli checks them byte for byte): the deploy job polls every `https://bimpdf.com/schema/*` hash and `/version.json`.
 - Deploy: `ci.yml` deploy job, `workflow_dispatch` with `deploy=true` on main (push-deploy on main since the pdf-bim strip PR, PLAN S6). Rollback: `npx wrangler rollback`.
 - CI runs on GitHub-hosted runners (`ubuntu-latest`) only; `core-sync.yml` is dispatch-only and never runs on `pull_request`.
+- `ui/` = worker `bimpdf-ui` (ui.bimpdf.com): the generated brand-set page (Broadsheet 1.0.0 + the bimpdf spot, from `design/`) built by `.standards/ui-kit/ui-gen.mjs`; `.github/workflows/ui.yml` (ubuntu-latest) dry-runs it on PRs and deploys on main. The custom domain is attached once by the coordinator (see `ui/README.md`).

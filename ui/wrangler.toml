@@ -1,0 +1,20 @@
+# ui.bimpdf.com: the generated design page of the bimpdf pack (Broadsheet 1.0.0 + the bimpdf amber spot).
+# Static assets only, no Worker script. A NEW Worker, separate from the `bim-pdf-worker` app Worker (../wrangler.toml).
+# Recipe: standards docs/ui-kit.md "Publishing ui.<domain>". Build: ui-gen, then stamp.mjs (version.json + noindex files).
+name = "bimpdf-ui"
+account_id = "fe69952c4f0294c0036af5f09fdd21ff"
+compatibility_date = "2025-01-01"
+
+# workers.dev serves the preview (and the post-deploy check) until/besides the custom domain.
+# Top-level key: under [assets] wrangler ignores it ("Unexpected fields found in assets field").
+workers_dev = true
+
+[assets]
+directory = "../dist-ui"
+
+# NOTE: ui.bimpdf.com is NOT a [[routes]] custom_domain block (that re-registers on every deploy and needs
+# Zone:Edit, which the CI deploy token lacks). The coordinator attaches it once through the Cloudflare API: see ui/README.md.
+
+# [build] runs before every deploy, dry-run and dev session.
+[build]
+command = "node ../.standards/ui-kit/ui-gen.mjs .. --out dist-ui && node stamp.mjs"
