@@ -74,7 +74,7 @@ for (const page of PAGES) {
 
   test(`${page}: the spot colour never colours text`, () => {
     const css = stripComments(siteCss(html))
-    assert.doesNotMatch(css, /(^|[;{\s])color\s*:\s*var\(--bk-spot\)/, 'color: var(--bk-spot)')
+    assert.doesNotMatch(css, /(^|[;{\s])color\s*:\s*var\(--ui-color-spot\)/, 'color: var(--ui-color-spot)')
   })
 
   test(`${page}: every link is a kit tap target or a kit button (no inline text link, no site nav link)`, () => {
@@ -131,10 +131,10 @@ for (const page of PAGES) {
 }
 
 test('the kit (pinned copy) owns the bimpdf spot: light, OS dark and forced dark, on <html> or <body>', () => {
-  const light = tokensCss.match(/\[data-bk-property="bimpdf"\] \{\s*--bk-spot: (#[0-9a-f]{6});/)
+  const light = tokensCss.match(/\[data-bk-property="bimpdf"\] \{\s*--ui-color-spot: (#[0-9a-f]{6});/)
   assert.ok(light, 'tokens.css sets the bimpdf spot')
   const dark = [
-    ...tokensCss.matchAll(/\[data-bk-property="bimpdf"\] \{\s*--bk-spot: (#[0-9a-f]{6});/g),
+    ...tokensCss.matchAll(/\[data-bk-property="bimpdf"\] \{\s*--ui-color-spot: (#[0-9a-f]{6});/g),
   ].map((m) => m[1])
   assert.equal(dark.length, 3, 'light + OS dark + forced dark')
   assert.match(tokensCss, /:root\[data-theme="dark"\] \[data-bk-property="bimpdf"\]/)
