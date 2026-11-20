@@ -2,7 +2,7 @@
      Inline this fragment ONCE per page, inside the kit root (Chrome cannot paint with an external SVG file:
      fill: url(hatches.svg#id) draws nothing), then put .bk-hatch-<id> on an SVG mark or a legend swatch's <rect>.
      Any step also works as a paint, url(#bk-hatch-<id>) (solid = ink, outline = no fill: give it a stroke).
-     One ink (--bk-hatch-ink, base.css .bk-hatch-stroke / .bk-hatch-fleck), one 1px weight; spacing sets the tone.
+     One ink (--ui-color-hatch-ink, base.css .bk-hatch-stroke / .bk-hatch-fleck), one 1px weight; spacing sets the tone.
      Pitches are in the drawing SVG's user units: a viewBox-scaled chart scales them (DESIGN.md "Hatches"). -->
 <svg xmlns="http://www.w3.org/2000/svg" class="bk-hatches" width="0" height="0" aria-hidden="true" focusable="false">
   <defs>

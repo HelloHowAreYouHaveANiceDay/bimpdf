@@ -1,0 +1,17 @@
+{
+  "pack": "broadsheet",
+  "prefix": "bk",
+  "version": "1.0.0",
+  "themes": {
+    "light": [":root"],
+    "dark": [
+      "@media (prefers-color-scheme: dark) :root:not([data-theme=\"light\"])",
+      ":root[data-theme=\"dark\"]"
+    ]
+  },
+  "extensions": ["series", "hatch", "chart", "status", "elevated", "type", "tracking", "feature", "control", "rule", "page", "reading", "measure", "opacity", "nudge", "range"],
+  "budgets": { "inks": 7, "sizes": null },
+  "tokens": ["tokens.css"],
+  "base": ["base.css"],
+  "sources": []
+}

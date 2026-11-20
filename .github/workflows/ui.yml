@@ -1,0 +1,93 @@
+name: ui
+
+# ui.bimpdf.com (worker bimpdf-ui): the generated brand-set page. PRs dry-run the worker (ui-gen fails while the
+# pack fails the ui-kit lint); pushes to main deploy it and verify the live page.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'design/**'
+      - 'ui/**'
+      - '.standards/ui-kit/**'
+      - '.github/workflows/ui.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'design/**'
+      - 'ui/**'
+      - '.standards/ui-kit/**'
+      - '.github/workflows/ui.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ui-dryrun:
+    name: ui / dry run
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Worker dry run (runs ui-gen + stamp via wrangler [build])
+        working-directory: ui
+        run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/ui-build"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: fe69952c4f0294c0036af5f09fdd21ff
+      - name: Page names the pack
+        run: |
+          set -eu
+          grep -q 'broadsheet' dist-ui/index.html
+          grep -q '"commit":"' dist-ui/version.json
+
+  ui-deploy:
+    name: ui / deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Deploy ui worker
+        id: deploy
+        working-directory: ui
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: fe69952c4f0294c0036af5f09fdd21ff
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          OUTPUT=$(npx wrangler deploy 2>&1)
+          echo "$OUTPUT"
+          echo "url=$(echo "$OUTPUT" | grep -oE 'https://[a-zA-Z0-9._-]+\.workers\.dev' | head -1)" >> "$GITHUB_OUTPUT"
+      - name: Verify live
+        if: always()
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -eu
+          [ -n "$URL" ] || { echo "no workers.dev URL in wrangler output" >&2; exit 1; }
+          for i in $(seq 1 18); do
+            got="$(curl -fsSL -H 'Cache-Control: no-cache' "$URL/version.json?cb=$GITHUB_SHA-$i" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).commit" || true)"
+            if [ "$got" = "$GITHUB_SHA" ]; then
+              page="$(curl -fsSL "$URL/")"; hdr="$(curl -sIL "$URL/")"
+              grep -q 'broadsheet' <<<"$page" || { echo "page does not name the pack" >&2; exit 1; }
+              grep -qi '^x-robots-tag: noindex' <<<"$hdr" || { echo "no x-robots-tag noindex" >&2; exit 1; }
+              echo "$URL serves $got"; exit 0
+            fi
+            echo "attempt $i: $URL serves '$got', want $GITHUB_SHA"; sleep 10
+          done
+          exit 1

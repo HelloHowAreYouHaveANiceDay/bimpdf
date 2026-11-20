@@ -1,0 +1,17 @@
+/* bimpdf's own tokens on top of Broadsheet 1.0.0 (design/vendor/broadsheet/1.0.0, pinned by SHA256SUMS).
+   A converging pack sets only --ui-color-spot and its declared extensions here (ui-kit UK8).
+   Spot: bimpdf amber, one value per theme, 3:1+ on its background (the values Broadsheet 0.6.5 gave data-bk-property="bimpdf"). */
+:root,
+[data-theme='light'] {
+  --ui-color-spot: #9a5414;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ui-color-spot: #c8721e;
+  }
+}
+
+:root[data-theme='dark'] {
+  --ui-color-spot: #c8721e;
+}

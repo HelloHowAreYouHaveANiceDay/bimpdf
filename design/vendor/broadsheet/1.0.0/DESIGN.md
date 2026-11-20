@@ -179,7 +179,7 @@ typography:
 rounded:
   none: 0px
 spacing:
-  # Spacing: the 4px grid in rem (--bk-space-<n>; 1rem = 16px at the default root)
+  # Spacing: the 4px grid in rem (--ui-space-<n>; 1rem = 16px at the default root)
   "0": 0.125rem
   "1": 0.25rem
   "2": 0.5rem
@@ -341,7 +341,7 @@ hairline rules rather than boxes, colour, weight or shadow.
 - **One spot colour per property.** Each site has exactly one `spot` colour,
   used for its logo and, in pdfmarkuptool, for markup ink on the drawing sheet.
   The kit owns every property's spot (the `spots` registry): a site names
-  itself with `data-bk-property` and never writes `--bk-spot`. It never colours
+  itself with `data-bk-property` and never writes `--ui-color-spot`. It never colours
   chrome, and spot text sits on paper only.
 - **Two densities.** `ledger` (the default: 0.8125rem / 13px base, tight rows,
   dashboards and tools) and `reading` (1.0625rem / 17px serif body, a 68ch
@@ -391,10 +391,10 @@ holds paper, `colorsDark` holds ink; every name exists in both.
 - **Spot (#a12a61 / #d77aa4):** the property's spot colour (default:
   pdfmarkuptool's markup ink). Each portfolio property takes its own from the
   `spots` registry by naming itself on `<html>` or `<body>`:
-  `data-bk-property="pmt" | "bimpdf" | "bimcli"`; tokens.css sets `--bk-spot`
+  `data-bk-property="pmt" | "bimpdf" | "bimcli"`; tokens.css sets `--ui-color-spot`
   for it in light, OS dark and forced dark. Every registered spot meets 4.5:1 on
   the paper, the tint and (light) the white sheet, in its theme -- the kit's
-  contrast tests cover each one, so a site never writes `--bk-spot` itself.
+  contrast tests cover each one, so a site never writes `--ui-color-spot` itself.
 
   | property | light | dark |
   | --- | --- | --- |
@@ -621,7 +621,7 @@ framework is needed.
   every stop, both ends included, each under the thumb's centre when it sits
   there; hover turns them ink with the track. Use it on a range whose step makes
   few stops (an opacity in 5% steps). CSS cannot read min / max / step, so the
-  host sets `--bk-range-steps` to the interval count, (max - min) / step
+  host sets `--ui-size-range-steps` to the interval count, (max - min) / step
   (10 when unset). Skip the notches above ~24 stops, or where stops would sit
   closer than ~6px apart: they then read as a texture, not as stops.
 - **Kicker** (`.bk-kicker`): the eyebrow line over a headline (label-sm,

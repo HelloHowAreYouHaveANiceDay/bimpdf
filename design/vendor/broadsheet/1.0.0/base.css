@@ -1,0 +1,853 @@
+/* ============================================================================
+   Broadsheet -- framework-free primitives (@bim-pdf/ui-kit base.css)
+   ----------------------------------------------------------------------------
+   Ported from dash.bimisland.com's styles.css. Needs tokens.css loaded first.
+
+   Rules of the kit (0.3.0 "essentialist"; 0.3.1 neutral light paper; 0.4.0 the portfolio primitives and the
+   reading-density element defaults):
+   - seven interface inks per theme (paper, tint, rule, grey, ink, alert, spot), plus an accessible neutral chart ramp;
+   - state by fill, edge and a word, never by hue and never by WEIGHT: a selected / current / pressed
+     thing keeps its weight and takes the ink fill or a 2px ink edge (--ui-size-rule-medium); a status is a
+     small-caps word with no box (ok / bad ink, warn / quiet grey);
+   - one weight per edge: two rules never stack on one side of a box;
+   - one newspaper red (--ui-color-alert), only redundant with a word (URGENT / DOWN / DELETE);
+   - one per-property spot colour (--ui-color-spot), for the logo and markup ink only; tokens.css sets it per
+     data-bk-property (the kit's spots registry), a site never writes it;
+   - square (radius 0), hairline rules instead of boxes, no shadows, no motion (no animation, no fades);
+   - serif headlines, mono tabular figures, sans chrome.
+
+   Scoping: every class is prefixed bk-. Element defaults (body type, headings, links,
+   code) apply ONLY inside an opt-in root -- `.bk-page` or `[data-bk]` -- so loading
+   this file never restyles a host app (pdfmarkuptool loads it in Storybook only).
+   One cascade rule: an element default never beats a class. Margins of bare headings and paragraphs and every
+   reading-density element default are written :where(<element>) (specificity 0,1,0) and sit at the top of this
+   file, so any kit or site class -- even a single one, later in the file or in a site sheet -- wins.
+
+   Units: rem for type sizes, leading and text-adjacent spacing (--ui-space-*, --ui-font-type-*); px for rules,
+   borders, the focus ring and the 44px touch floor (--ui-size-rule*, --ui-size-focus-ring, --ui-size-touch-min).
+
+   Density: the default is "ledger" (0.8125rem = 13px base, dense rows). Put
+   data-bk-density="reading" on the root (or any section) for marketing / docs pages:
+   1.0625rem (17px) serif body, larger headlines, a 68ch measure. Control sizes do not change.
+   A density is inherited: a kit root nested inside another root or inside a density context (a reading body with an
+   inner .bk-page--reading column) keeps that density; data-bk-density="ledger" switches a section back.
+
+   Colours are read straight from the --ui-color-* tokens (the kit has no composite tokens: a
+   var() inside a :root token resolves on :root), so a subtree that re-declares the colour
+   tokens -- a theme preview panel, a dark band on a light page -- gets its own rules.
+
+   Touch: control heights come from --ui-size-control-{sm,md,lg}: 24/28/34px on a fine
+   pointer, 44/44/48px under (any-pointer: coarse) (tokens.css), and the same media query here floors
+   the width of buttons, controls and nav tabs at --ui-size-touch-min: touch targets are >= 44px in both dimensions.
+   Side padding is --ui-space-2 (8px = 0.5rem) on a control / button, --ui-space-1 (4px) on --sm and
+   --ui-space-3 (12px) on --lg; it does not grow under touch (the height does).
+   Hover styles sit inside @media (hover: hover), so a tap never leaves a sticky hover look.
+   ============================================================================ */
+
+/* ---------------------------------------------------------------- page root */
+/* density aliases: what body / h1 / h2 / h3 read. Ledger by default -- set by the OUTERMOST kit root only (not by a
+   root nested in another root or in a [data-bk-density] element: that one inherits the density around it), and by
+   data-bk-density="ledger" (a ledger section inside a reading page). :where() keeps this at (0,0,0), so
+   [data-bk-density="reading"] on the same element wins. */
+:where(.bk-page, [data-bk]):where(:not(:is(.bk-page, [data-bk], [data-bk-density]) *)),
+[data-bk-density="ledger"] {
+  --bk-body: var(--ui-font-type-body-md);
+  --bk-h1: var(--ui-font-type-headline-lg);
+  --bk-h2: var(--ui-font-type-headline-md);
+  --bk-h3: var(--ui-font-type-headline-sm);
+  --bk-h1-tracking: var(--ui-font-tracking-headline-lg);
+}
+[data-bk-density="ledger"] { font: var(--bk-body); }
+.bk-page,
+[data-bk] {
+  box-sizing: border-box;
+  color-scheme: light dark;
+  background: var(--ui-color-background);
+  color: var(--ui-color-text);
+  font: var(--bk-body);
+  -webkit-font-smoothing: antialiased;
+}
+.bk-page {
+  max-width: var(--ui-size-page-max);
+  margin: 0 auto;
+  padding: 0 var(--ui-space-4) var(--ui-space-6);
+}
+:root[data-theme="light"] :is(.bk-page, [data-bk]) { color-scheme: light; }
+:root[data-theme="dark"] :is(.bk-page, [data-bk]) { color-scheme: dark; }
+
+:is(.bk-page, [data-bk]) *,
+:is(.bk-page, [data-bk]) *::before,
+:is(.bk-page, [data-bk]) *::after { box-sizing: inherit; }
+
+[data-bk-density="reading"] {
+  --bk-body: var(--ui-font-type-reading-body);
+  --bk-h1: var(--ui-font-type-reading-display);
+  --bk-h2: var(--ui-font-type-reading-headline);
+  --bk-h3: var(--ui-font-type-reading-subhead);
+  --bk-h1-tracking: var(--ui-font-tracking-reading-display);
+  font: var(--bk-body);
+  /* a run wider than the column (a pipe list, a code chain) breaks instead of widening the page; break-word, not
+     anywhere: min-content is unchanged, so an identifier in a table cell stays whole and the table scrolls */
+  overflow-wrap: break-word;
+}
+
+:is(.bk-page, [data-bk]) :where(h1, h2, h3, h4) { margin: 0 0 var(--ui-space-3); color: var(--ui-color-text); }
+:is(.bk-page, [data-bk]) h1 { font: var(--bk-h1); letter-spacing: var(--bk-h1-tracking); }
+:is(.bk-page, [data-bk]) h2 { font: var(--bk-h2); }
+:is(.bk-page, [data-bk]) h3 { font: var(--bk-h3); }
+:is(.bk-page, [data-bk]) h4 {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+}
+:is(.bk-page, [data-bk]) :where(p) { margin: 0 0 var(--ui-space-3); }
+[data-bk-density="reading"] p,
+[data-bk-density="reading"] li { max-width: var(--ui-size-measure); }
+/* plain links only: a classed link (.bk-button) or a nav tab styles itself. :where() keeps the
+   :not([class]) filter out of the specificity (0,1,1), so `.bk-nav a` (0,1,1, later in this file)
+   still sets a classless nav tab's colour. */
+:is(.bk-page, [data-bk]) a:where(:not([class])) { color: var(--ui-color-text); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: var(--ui-size-rule); }
+@media (hover: hover) {
+  :is(.bk-page, [data-bk]) a:where(:not([class])):hover { text-decoration-thickness: var(--ui-size-rule-medium); }
+}
+:is(.bk-page, [data-bk]) :is(code, kbd, samp) { font-family: var(--ui-font-mono); font-size: .92em; }
+/* the inline code chip; not in a code block and not in a table cell (a cell is already a ruled box) */
+:is(.bk-page, [data-bk]) :not(pre, td, th) > code { padding: 0 var(--ui-size-nudge); background: var(--ui-color-panel); border: var(--ui-size-rule) solid var(--ui-color-line); }
+
+/* ------------------------------------------------ reading-density element defaults */
+/* A docs / marketing page in reading density writes no element CSS: the bare elements of a markdown page take the
+   kit's looks here. Every rule is [data-bk-density="reading"] :where(<element>) (0,1,0) and sits above every class
+   rule, so any class wins (the cascade rule in the header). The looks are the kit's classes, applied to the bare
+   element: h2 = the section-head hairline, pre = .bk-code, blockquote = the .bk-banner mark, hr = .bk-rule,
+   table = a .bk-ledger whose cells wrap, figcaption = .bk-caption; a dl reads as a FAQ (serif dt under a hairline). */
+[data-bk-density="reading"] :where(h2) {
+  margin-top: var(--ui-space-7); padding-bottom: var(--ui-space-2);
+  border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
+}
+[data-bk-density="reading"] :where(h3) { margin-top: var(--ui-space-5); }
+[data-bk-density="reading"] :where(ul, ol) { margin: 0 0 var(--ui-space-3); padding-left: var(--ui-space-5); }
+[data-bk-density="reading"] :where(li) { margin-bottom: var(--ui-space-1); }
+[data-bk-density="reading"] :where(hr) { height: 0; margin: var(--ui-space-5) 0; border: 0; border-top: var(--ui-size-rule) solid var(--ui-color-line); }
+[data-bk-density="reading"] :where(figure) { margin: var(--ui-space-5) 0; }
+[data-bk-density="reading"] :where(figcaption) { margin-top: var(--ui-space-2); font: var(--ui-font-type-body-sm); color: var(--ui-color-text-muted); }
+[data-bk-density="reading"] :where(pre) {
+  margin: 0 0 var(--ui-space-4); padding: var(--ui-space-2) var(--ui-space-3);
+  overflow-x: auto;
+  font: var(--ui-font-type-code); color: var(--ui-color-text);
+  border-left: var(--ui-size-rule-heavy) solid var(--ui-color-text);
+}
+[data-bk-density="reading"] :where(blockquote) {
+  margin: 0 0 var(--ui-space-4); padding: var(--ui-space-2) var(--ui-space-3);
+  border-left: var(--ui-size-rule-heavy) solid var(--ui-color-text);
+}
+[data-bk-density="reading"] :where(blockquote > :last-child) { margin-bottom: 0; }
+[data-bk-density="reading"] :where(table) { width: 100%; margin: 0 0 var(--ui-space-4); border-collapse: collapse; }
+[data-bk-density="reading"] :where(th, td) {
+  padding: var(--ui-space-2) var(--ui-space-3);
+  text-align: left; vertical-align: top;
+  border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
+}
+[data-bk-density="reading"] :where(th) {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+  border-bottom-color: var(--ui-color-text);
+}
+[data-bk-density="reading"] :where(td) { font: var(--ui-font-type-body-md); }
+[data-bk-density="reading"] :where(dl) { margin: 0 0 var(--ui-space-4); }
+[data-bk-density="reading"] :where(dt) {
+  margin-top: var(--ui-space-5); padding-top: var(--ui-space-3);
+  border-top: var(--ui-size-rule) solid var(--ui-color-line);
+  font: var(--bk-h3);
+}
+[data-bk-density="reading"] :where(dd) { margin: var(--ui-space-2) 0 var(--ui-space-3); }
+/* the one phone step (the kit's one breakpoint, as .bk-columns): the display headline and the lead come down a step,
+   and a bare table scrolls sideways inside the column instead of widening the page (a table in .bk-table-wrap stays a
+   table: the wrapper scrolls) */
+@media (max-width: 760px) {
+  [data-bk-density="reading"] { --bk-h1: var(--ui-font-type-reading-headline); --bk-h1-tracking: var(--ui-font-tracking-reading-headline); }
+  [data-bk-density="reading"] .bk-lead { font: var(--ui-font-type-reading-body); }
+  [data-bk-density="reading"] :where(table) { display: block; max-width: 100%; overflow-x: auto; }
+}
+
+/* ------------------------------------------------------------- focus ring */
+/* One ring for everything focusable: 2px of --ui-color-focus (ink: >= 3:1 on every surface, both themes). */
+:is(.bk-page, [data-bk]) :focus-visible,
+.bk-control:focus-visible,
+.bk-button:focus-visible,
+.bk-range:focus-visible {
+  outline: var(--ui-size-focus-ring) solid var(--ui-color-focus);
+  outline-offset: 2px;
+}
+
+/* ----------------------------------------------------------- ledger data */
+/* The single source for tabular figures. */
+.bk-num, .bk-mono, .bk-ledger td, .bk-tile-value, .bk-dateline .bk-mono {
+  font-family: var(--ui-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.bk-num { text-align: right; }
+.bk-muted { color: var(--ui-color-text-muted); }
+.bk-faint { color: var(--ui-color-text-subtle); }
+.bk-label {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+}
+
+/* --------------------------------------------------------------- rules */
+.bk-rule { height: 0; margin: var(--ui-space-4) 0; border: 0; border-top: var(--ui-size-rule) solid var(--ui-color-line); }
+.bk-rule--strong { border-top: var(--ui-size-rule) solid var(--ui-color-border); }
+.bk-rule--ink { border-top: var(--ui-size-rule-heavy) solid var(--ui-color-text); }
+
+/* ------------------------------------------------------------- masthead */
+.bk-masthead { margin: 0 0 var(--ui-space-4); }
+.bk-nameplate {
+  display: flex; align-items: center; gap: var(--ui-space-2);
+  padding: var(--ui-space-3) 0 var(--ui-space-2);
+  border-top: var(--ui-size-rule-heavy) solid var(--ui-color-text);
+}
+/* the logo is the property's spot colour -- the only hue in the masthead; a logo link draws no underline */
+.bk-logo { color: var(--ui-color-spot); font: var(--ui-font-type-headline-lg); line-height: 1; text-decoration: none; }
+.bk-logo svg { display: block; fill: currentColor; }
+.bk-wordmark {
+  flex: 1; margin: 0;
+  font: var(--ui-font-type-masthead); letter-spacing: var(--ui-font-tracking-masthead);
+  color: var(--ui-color-text);
+}
+/* An h1 wordmark: beat the root's heading defaults (:is(.bk-page, [data-bk]) h1 is 0,1,1) under BOTH roots. */
+:is(.bk-page, [data-bk]) .bk-wordmark {
+  margin: 0;
+  font: var(--ui-font-type-masthead); letter-spacing: var(--ui-font-tracking-masthead);
+  color: var(--ui-color-text);
+}
+.bk-dateline {
+  display: flex; justify-content: space-between; align-items: baseline; gap: var(--ui-space-3);
+  padding: var(--ui-space-1) 0;
+  border-top: var(--ui-size-rule) solid var(--ui-color-line); border-bottom: var(--ui-size-rule) solid var(--ui-color-text);
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+}
+.bk-dateline .bk-mono { text-transform: none; letter-spacing: 0; }
+
+/* ------------------------------------------------------------------ nav */
+.bk-nav { display: flex; flex-wrap: wrap; gap: var(--ui-space-4); margin-bottom: var(--ui-space-4); border-bottom: var(--ui-size-rule) solid var(--ui-color-line); }
+.bk-nav[role="tablist"] { flex-wrap: nowrap; margin-bottom: 0; }
+/* Tabs: links, or buttons in a tablist. Sentence case at the label's one weight; the current tab's 2px ink
+   underline sits over the nav hairline (margin: -1 rule), so that stretch of the edge carries one weight. */
+.bk-nav a,
+.bk-nav button[role="tab"] {
+  display: inline-flex; align-items: center; min-height: var(--ui-size-control-md);
+  padding: var(--ui-space-2) 0; margin: 0 0 calc(-1 * var(--ui-size-rule));
+  color: var(--ui-color-text-muted); text-decoration: none; text-transform: none;
+  font: var(--ui-font-type-label-md); letter-spacing: var(--ui-font-tracking-label-md);
+  background: none; border: 0; border-radius: var(--ui-radius-none);
+  border-bottom: var(--ui-size-rule-medium) solid transparent;
+}
+.bk-nav button[role="tab"] { cursor: pointer; }
+.bk-nav a, :is(.bk-page, [data-bk]) .bk-nav a { text-decoration: none; }
+@media (hover: hover) {
+  .bk-nav a:hover,
+  .bk-nav button[role="tab"]:hover { color: var(--ui-color-text); }
+}
+.bk-nav a.is-on,
+.bk-nav a[aria-current="page"],
+.bk-nav button[role="tab"][aria-selected="true"] { color: var(--ui-color-text); border-bottom-color: var(--ui-color-primary); }
+/* The logo in the nav row (a one-row masthead): <nav class="bk-nav"><a class="bk-logo" href="/">..</a><a>..</a>..</nav>.
+   The logo keeps the logo look -- not a tab: the tabs' 8px above and below, no tab underline, no hover or current recolour (0,2,1, after
+   the tab rules) -- and pushes the tabs to the right: one row on a desktop and a tablet. It is still a tap target (a
+   control tall; 44px wide under a coarse pointer, like every nav link). Logo + wordmark: an img or svg and a
+   .bk-wordmark span inside the link. In a masthead this row IS the nameplate: it takes the nameplate's heavy rule. */
+.bk-nav > .bk-logo,
+.bk-nav > a.bk-logo {
+  display: inline-flex; align-items: center; gap: var(--ui-space-2);
+  min-height: var(--ui-size-control-md); margin: 0 auto 0 0; padding: var(--ui-space-2) 0;
+  color: var(--ui-color-spot); font: var(--ui-font-type-headline-lg); line-height: 1; letter-spacing: 0;
+  text-transform: none; text-decoration: none;
+  border: 0;
+}
+.bk-masthead > .bk-nav:has(> .bk-logo) { border-top: var(--ui-size-rule-heavy) solid var(--ui-color-text); }
+/* phone (the kit's one breakpoint): the logo on its own line, the tabs wrap on the lines under it, flush left */
+@media (max-width: 760px) {
+  .bk-nav:has(> .bk-logo) { row-gap: 0; }
+  .bk-nav:has(> .bk-logo)::before { content: ""; flex-basis: 100%; }
+  .bk-nav > .bk-logo { order: -1; }
+}
+
+/* -------------------------------------------------------------- controls */
+/* Every clickable control shares one base. */
+.bk-control,
+.bk-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--ui-space-1);
+  min-height: var(--ui-size-control-md); margin: 0;
+  padding: 0 var(--ui-space-2);
+  font: var(--ui-font-type-label-md); letter-spacing: 0; text-transform: none;
+  color: var(--ui-color-text); background: var(--ui-color-background);
+  border: var(--ui-size-rule) solid var(--ui-color-border); border-radius: var(--ui-radius-none);
+  box-shadow: none; cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.bk-control { justify-content: flex-start; cursor: auto; font-weight: 400; font-family: var(--ui-font-sans); }
+select.bk-control, input[type="date"].bk-control { cursor: pointer; }
+input.bk-control::placeholder { color: var(--ui-color-text-subtle); }
+/* A control is a hairline on paper (the grey edge is the 3:1 interactive edge); hover turns that edge ink, with no
+   tint and no fade. */
+@media (hover: hover) {
+  .bk-control:hover,
+  .bk-button:hover { border-color: var(--ui-color-focus); color: var(--ui-color-text); }
+}
+.bk-button--sm { min-height: var(--ui-size-control-sm); padding: 0 var(--ui-space-1); }
+.bk-button--lg { min-height: var(--ui-size-control-lg); padding: 0 var(--ui-space-3); }
+/* a toggle that is on / the selected preset inverts to ink. The fill carries the state: the weight stays the
+   label's 600, like every other button. */
+.bk-button.is-on,
+.bk-button[aria-pressed="true"],
+.bk-button--primary {
+  background: var(--ui-color-primary); color: var(--ui-color-on-primary); border-color: var(--ui-color-primary);
+}
+@media (hover: hover) {
+  .bk-button.is-on:hover,
+  .bk-button[aria-pressed="true"]:hover,
+  .bk-button--primary:hover { background: var(--ui-color-text-muted); border-color: var(--ui-color-text-muted); color: var(--ui-color-on-primary); }
+}
+/* destructive: the red fill, and the label already says what it does */
+.bk-button--alert { background: var(--ui-color-alert); color: var(--ui-color-on-alert); border-color: var(--ui-color-alert); }
+@media (hover: hover) {
+  .bk-button--alert:hover { background: var(--ui-color-text); border-color: var(--ui-color-text); color: var(--ui-color-background); }
+}
+.bk-button--ghost { background: transparent; border-color: transparent; color: var(--ui-color-text-muted); }
+@media (hover: hover) {
+  .bk-button--ghost:hover { background: var(--ui-color-background-hover); border-color: transparent; color: var(--ui-color-text); }
+}
+/* editorial preset pills: small caps */
+.bk-button--preset {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm); text-transform: uppercase;
+}
+.bk-button:disabled,
+.bk-button[aria-disabled="true"],
+.bk-control:disabled,
+.bk-range:disabled { opacity: var(--ui-color-opacity-disabled); cursor: not-allowed; }
+
+/* Touch WIDTH: tokens.css grows the control heights under a coarse pointer; this floors the width, so a short
+   label ("Day", "7d", a glyph-only ghost button) is still a 44 x 44px target. Every tap target of the kit: buttons
+   (all variants), controls, nav tabs and the links of a crumb trail or a link row. Chips are status labels, not tap
+   targets. */
+@media (any-pointer: coarse) {
+  .bk-button,
+  .bk-control,
+  .bk-nav a,
+  .bk-nav button[role="tab"],
+  .bk-crumbs a,
+  .bk-linkrow a { min-width: var(--ui-size-touch-min); }
+  .bk-field .bk-control { font: var(--ui-font-type-field); }
+}
+
+/* --------------------------------------------------------------- range */
+/* A range (a level: opacity, a sensitivity) is a hairline and a square ink thumb, styled in both engines
+   (::-webkit-slider-* for Blink / WebKit, ::-moz-range-* for Gecko) so no browser blue, no rounded knob is left.
+   The track is the 3:1 interactive edge (--ui-color-border) at one rule weight, drawn across the middle of a control-tall
+   box, ending where the thumb's centre stops (it spans the thumb's travel, not the whole box: a touch thumb box is
+   44px wide, so on a narrow range a full-width line ran past the thumb at both ends); hover turns it ink like a
+   control's edge. The thumb is an ink block (--ui-color-primary), square; there is no filled
+   part (Blink cannot draw one from CSS alone, and both engines must read the same). Focus takes the one ring and
+   disabled the one fade (above). Under a coarse pointer the box is a control tall (44px) and the thumb's transparent borders widen its
+   hit area to --ui-size-touch-min both ways while its ink stays the same size. --bk-range-thumb is that thumb BOX width (the ink
+   width on a fine pointer, touch-min under a coarse one): the thumb rules and the notch geometry both read it.
+   .bk-range--notched (a stepped range with few stops) adds dial notches, like an amplifier's: one --ui-size-rule tick,
+   --ui-space-2 tall, across the hairline at EVERY stop including both ends. CSS cannot read min / max / step, so the
+   host states the interval count, --ui-size-range-steps = (max - min) / step (10 when unset). The thumb centre travels from
+   half its box to the width minus half its box, so the notch layer is that travel (+ one rule) wide, inset by half the
+   box, painted once (no-repeat: nothing outside the travel) as a repeating gradient whose period is the travel / steps;
+   its last tick lands on the max end. The notches take the track colour, turn ink on hover and fade when disabled. */
+.bk-range {
+  -webkit-appearance: none; appearance: none;
+  display: inline-block; vertical-align: middle;
+  height: var(--ui-size-control-md); margin: 0; padding: 0;
+  background: transparent; border: 0; border-radius: var(--ui-radius-none);
+  cursor: pointer;
+  --bk-range-thumb: var(--ui-space-2);
+}
+.bk-range::-webkit-slider-runnable-track {
+  height: 100%; border: 0; border-radius: var(--ui-radius-none);
+  background: linear-gradient(var(--ui-color-border), var(--ui-color-border)) calc(var(--bk-range-thumb) / 2 - var(--ui-size-rule) / 2) center / calc(100% - var(--bk-range-thumb) + var(--ui-size-rule)) var(--ui-size-rule) no-repeat;
+}
+.bk-range::-moz-range-track {
+  height: 100%; border: 0; border-radius: var(--ui-radius-none);
+  background: linear-gradient(var(--ui-color-border), var(--ui-color-border)) calc(var(--bk-range-thumb) / 2 - var(--ui-size-rule) / 2) center / calc(100% - var(--bk-range-thumb) + var(--ui-size-rule)) var(--ui-size-rule) no-repeat;
+}
+.bk-range::-moz-range-progress { background: transparent; }
+.bk-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  box-sizing: content-box;
+  width: var(--ui-space-2); height: var(--ui-space-4);
+  margin-top: calc((var(--ui-size-control-md) - var(--ui-space-4)) / 2);
+  background: var(--ui-color-primary); background-clip: padding-box;
+  border: 0; border-radius: var(--ui-radius-none); box-shadow: none;
+}
+.bk-range::-moz-range-thumb {
+  box-sizing: content-box;
+  width: var(--ui-space-2); height: var(--ui-space-4);
+  background: var(--ui-color-primary); background-clip: padding-box;
+  border: 0; border-radius: var(--ui-radius-none); box-shadow: none;
+}
+/* notched: the hairline layer + one notch layer (see the section comment); two rules, an engine drops a list naming
+   the other engine's pseudo-element */
+.bk-range--notched::-webkit-slider-runnable-track {
+  background:
+    linear-gradient(var(--ui-color-border), var(--ui-color-border)) calc(var(--bk-range-thumb) / 2 - var(--ui-size-rule) / 2) center / calc(100% - var(--bk-range-thumb) + var(--ui-size-rule)) var(--ui-size-rule) no-repeat,
+    repeating-linear-gradient(to right, var(--ui-color-border) 0 var(--ui-size-rule), transparent var(--ui-size-rule) calc((100% - var(--ui-size-rule)) / var(--ui-size-range-steps, 10)))
+      calc(var(--bk-range-thumb) / 2 - var(--ui-size-rule) / 2) center / calc(100% - var(--bk-range-thumb) + var(--ui-size-rule)) var(--ui-space-2) no-repeat;
+}
+.bk-range--notched::-moz-range-track {
+  background:
+    linear-gradient(var(--ui-color-border), var(--ui-color-border)) calc(var(--bk-range-thumb) / 2 - var(--ui-size-rule) / 2) center / calc(100% - var(--bk-range-thumb) + var(--ui-size-rule)) var(--ui-size-rule) no-repeat,
+    repeating-linear-gradient(to right, var(--ui-color-border) 0 var(--ui-size-rule), transparent var(--ui-size-rule) calc((100% - var(--ui-size-rule)) / var(--ui-size-range-steps, 10)))
+      calc(var(--bk-range-thumb) / 2 - var(--ui-size-rule) / 2) center / calc(100% - var(--bk-range-thumb) + var(--ui-size-rule)) var(--ui-space-2) no-repeat;
+}
+@media (hover: hover) {
+  .bk-range:hover::-webkit-slider-runnable-track { background-image: linear-gradient(var(--ui-color-focus), var(--ui-color-focus)); }
+  .bk-range:hover::-moz-range-track { background-image: linear-gradient(var(--ui-color-focus), var(--ui-color-focus)); }
+  .bk-range--notched:hover::-webkit-slider-runnable-track {
+    background-image: linear-gradient(var(--ui-color-focus), var(--ui-color-focus)),
+      repeating-linear-gradient(to right, var(--ui-color-focus) 0 var(--ui-size-rule), transparent var(--ui-size-rule) calc((100% - var(--ui-size-rule)) / var(--ui-size-range-steps, 10)));
+  }
+  .bk-range--notched:hover::-moz-range-track {
+    background-image: linear-gradient(var(--ui-color-focus), var(--ui-color-focus)),
+      repeating-linear-gradient(to right, var(--ui-color-focus) 0 var(--ui-size-rule), transparent var(--ui-size-rule) calc((100% - var(--ui-size-rule)) / var(--ui-size-range-steps, 10)));
+  }
+}
+/* touch: the thumb's hit area is touch-min square (transparent borders around the same ink), centred on the track */
+@media (any-pointer: coarse) {
+  .bk-range { --bk-range-thumb: var(--ui-size-touch-min); }
+  .bk-range::-webkit-slider-thumb {
+    border-style: solid; border-color: transparent;
+    border-width: calc((var(--ui-size-touch-min) - var(--ui-space-4)) / 2) calc((var(--bk-range-thumb) - var(--ui-space-2)) / 2);
+    margin-top: calc((var(--ui-size-control-md) - var(--ui-size-touch-min)) / 2);
+  }
+  .bk-range::-moz-range-thumb {
+    border-style: solid; border-color: transparent;
+    border-width: calc((var(--ui-size-touch-min) - var(--ui-space-4)) / 2) calc((var(--bk-range-thumb) - var(--ui-space-2)) / 2);
+  }
+}
+
+/* A field: the eyebrow label (its first span or label child) over the control. <label class="bk-field"><span>
+   or <div class="bk-field"><label for>. */
+.bk-field { display: inline-flex; flex-direction: column; gap: var(--ui-space-1); }
+.bk-field > span:first-child,
+.bk-field > label:first-child {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+}
+
+/* A toolbar / range bar row. Everything in a row shares ONE text baseline (a printer's line): the leading bk-label,
+   button and preset words, a control's value and a field's eyebrow, which sits INLINE before its control here
+   (never over it). A range has no text baseline (Blink makes one from its box bottom), so a field holding one centres
+   its label on the track: the label's baseline then lands where centred control text sits. Other items with no text
+   (a bare range, an icon-only button: its glyph's bottom would be its baseline) centre on the row. Stacked fields
+   side by side are a form row, .bk-field-row, never a toolbar. */
+.bk-toolbar { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ui-space-1); margin-bottom: var(--ui-space-4); }
+.bk-toolbar .bk-label { margin-right: var(--ui-space-1); }
+.bk-toolbar > .bk-field { flex-direction: row; align-items: baseline; gap: var(--ui-space-2); }
+.bk-toolbar > .bk-field:has(> .bk-range) { align-items: center; }
+.bk-toolbar > .bk-range { align-self: center; }
+.bk-toolbar > .bk-button:has(> svg:only-child) { align-self: center; }
+/* a form row: stacked fields (eyebrow over control) side by side, their controls' bottoms on one line */
+.bk-field-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--ui-space-3); margin-bottom: var(--ui-space-4); }
+
+/* ------------------------------------------------------- chips / status */
+/* A status is a small-caps WORD set in the line (the eyebrow type), with no border and no padding box. ok and bad
+   are the ink word -- the worst state never reads weakest -- warn and quiet the grey word; the word tells them
+   apart. Two fills only: --on (ink, a selection) and --alert (red, an urgent word); a fill needs its side bearing. */
+.bk-chip {
+  display: inline; vertical-align: baseline; flex: none;
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm); text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-color-text); white-space: nowrap;
+}
+.bk-chip--ok { color: var(--ui-color-status-ok); }
+.bk-chip--warn { color: var(--ui-color-status-warn); }
+.bk-chip--bad { color: var(--ui-color-status-bad); }
+.bk-chip--quiet { color: var(--ui-color-text-muted); }
+.bk-chip--on { color: var(--ui-color-on-primary); background: var(--ui-color-primary); padding: 0 var(--ui-space-1); }
+.bk-chip--alert { color: var(--ui-color-on-alert); background: var(--ui-color-alert); padding: 0 var(--ui-space-1); }
+/* Two forms (any look above combines with them): --count, a number in a column of counts -- at least 2em wide
+   where the chip is a box (a flex or grid row: a toolbar, a list row; in running text it stays an inline word),
+   centred, the figures tabular; --dot, a status lead with no text -- a 0.5rem square filled with the word's colour (an
+   --on / --alert dot keeps its fill). --zero recesses a count of nothing (the faint word, no fill): it stays visible
+   ("nothing here" is meaningful) while populated rows read first. A chip never shrinks in a flex row. */
+.bk-chip--count { min-width: 2em; text-align: center; }
+.bk-chip--dot { display: inline-block; width: var(--ui-space-2); height: var(--ui-space-2); box-sizing: border-box; padding: 0; }
+.bk-chip--dot:not(.bk-chip--on, .bk-chip--alert) { background: currentColor; }
+.bk-chip--zero { color: var(--ui-color-text-subtle); background: none; }
+
+/* ------------------------------------------------------- section / card */
+/* Sections are borderless editorial regions; the head carries a hairline rule. */
+.bk-section { margin-bottom: var(--ui-space-5); }
+.bk-section > h2,
+.bk-section-head {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--ui-space-2);
+  margin: 0 0 var(--ui-space-3); padding-bottom: var(--ui-space-2);
+  border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
+  font: var(--bk-h2); color: var(--ui-color-text);
+}
+.bk-section-head .bk-label, .bk-section > h2 .bk-label { font-family: var(--ui-font-sans); }
+
+/* two-column broadsheet grid with a vertical column rule */
+.bk-columns { display: grid; grid-template-columns: 2fr 1fr; gap: 0 var(--ui-space-5); margin-bottom: var(--ui-space-5); }
+.bk-columns > * + * { border-left: var(--ui-size-rule) solid var(--ui-color-line); padding-left: var(--ui-space-5); }
+@media (max-width: 760px) {
+  .bk-columns { grid-template-columns: 1fr; gap: var(--ui-space-5) 0; }
+  .bk-columns > * + * { border-left: 0; padding-left: 0; border-top: var(--ui-size-rule) solid var(--ui-color-line); padding-top: var(--ui-space-4); }
+}
+
+/* ---------------------------------------------------------------- well */
+.bk-well { padding: var(--ui-space-3); background: var(--ui-color-background); border: var(--ui-size-rule) solid var(--ui-color-line); border-radius: var(--ui-radius-none); }
+.bk-panel { padding: var(--ui-space-3); background: var(--ui-color-panel); border: var(--ui-size-rule) solid var(--ui-color-line); }
+/* A code block is ONE mark, like a notice: its 3px ink rule on the left. No fill, no hairline box. */
+pre.bk-code, .bk-code {
+  margin: 0 0 var(--ui-space-3); padding: var(--ui-space-2) var(--ui-space-3);
+  overflow-x: auto;
+  font: var(--ui-font-type-code); color: var(--ui-color-text);
+  border-left: var(--ui-size-rule-heavy) solid var(--ui-color-text);
+}
+.bk-code .bk-prompt { color: var(--ui-color-text-subtle); user-select: none; }
+.bk-code .bk-comment { color: var(--ui-color-text-muted); font-style: italic; }
+
+/* ----------------------------------------------------------- code panel */
+/* A command to copy (an install line, a prompt): an eyebrow head with the copy button over a hairline, the code below.
+   The panel is ONE mark -- the code block's 3px ink rule runs down its whole left side, head included -- so the code
+   inside drops its own rule (two rules never stack on one edge). Copied = the button's .is-on (the ink fill). */
+.bk-codepanel { margin: 0 0 var(--ui-space-4); border-left: var(--ui-size-rule-heavy) solid var(--ui-color-text); }
+.bk-codepanel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--ui-space-2);
+  padding: var(--ui-space-1) 0 var(--ui-space-1) var(--ui-space-3);
+  border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+}
+.bk-codepanel > pre {
+  margin: 0; padding: var(--ui-space-2) var(--ui-space-3);
+  overflow-x: auto;
+  font: var(--ui-font-type-code); color: var(--ui-color-text);
+  border-left: 0;
+}
+
+/* -------------------------------------------------------- alert banner */
+/* A notice is ONE mark: its 3px left rule. No box, no tint (a box + a rule + a tint said the same thing thrice).
+   One line: <strong>Word</strong><span>text</span> side by side (any span / div children: a host's text + actions
+   row stays a row). Block form: a banner holding a text block -- a paragraph, a list, a dl, a pre, a table, a heading --
+   stacks its children: the strong word on its own line, lists indented one step, no margin above / below. */
+.bk-banner {
+  display: flex; align-items: baseline; gap: var(--ui-space-2);
+  padding: var(--ui-space-2) var(--ui-space-3); margin-bottom: var(--ui-space-4);
+  border-left: var(--ui-size-rule-heavy) solid var(--ui-color-text);
+}
+.bk-banner > strong:first-child {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm); text-transform: uppercase;
+}
+.bk-banner--alert { border-left-color: var(--ui-color-alert); }
+.bk-banner--alert > strong:first-child { color: var(--ui-color-alert); text-decoration: underline; text-decoration-thickness: var(--ui-size-rule-medium); }
+.bk-banner:has(> :is(p, ul, ol, dl, pre, table, h2, h3, h4)) { display: block; }
+.bk-banner:has(> :is(p, ul, ol, dl, pre, table, h2, h3, h4)) > strong:first-child { display: block; margin-bottom: var(--ui-space-1); }
+.bk-banner:has(> :is(p, ul, ol, dl, pre, table, h2, h3, h4)) > :first-child { margin-top: 0; }
+.bk-banner:has(> :is(p, ul, ol, dl, pre, table, h2, h3, h4)) > :last-child,
+.bk-banner:has(> :is(p, ul, ol, dl, pre, table, h2, h3, h4)) > :last-child > li:last-child { margin-bottom: 0; }
+.bk-banner:has(> :is(p, ul, ol, dl, pre, table, h2, h3, h4)) :is(ul, ol) { margin: 0 0 var(--ui-space-3); padding-left: var(--ui-space-5); }
+
+/* --------------------------------------------------------- ledger table */
+/* The scroll wrapper for a wide table (any table: a ledger or a bare reading table): it scrolls sideways inside its
+   column, so the page never does. Give it role="region", an aria-label and tabindex="0" (a keyboard can scroll it).
+   The table inside stays a table at every width (the phone step turns only a BARE reading table into a scroller). */
+.bk-table-wrap { max-width: 100%; overflow-x: auto; }
+.bk-table-wrap > table { display: table; }
+.bk-ledger { width: 100%; border-collapse: collapse; }
+.bk-ledger th,
+.bk-ledger td {
+  padding: var(--ui-space-1) var(--ui-space-3);
+  text-align: left; white-space: nowrap;
+  border: 0; border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
+  background: transparent; color: var(--ui-color-text);
+}
+.bk-ledger td { font-size: var(--ui-font-size-data-sm); line-height: 1.5; }
+.bk-ledger th {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+  border-bottom: var(--ui-size-rule) solid var(--ui-color-text);
+}
+.bk-ledger .bk-num { text-align: right; }
+.bk-ledger td.bk-wrap { white-space: normal; font-family: var(--ui-font-sans); }
+@media (hover: hover) {
+  .bk-ledger tbody tr:hover { background: var(--ui-color-background-hover); }
+}
+/* a selected row: a 2px ink edge on its leading side, never bold */
+.bk-ledger tbody tr:is(.is-on, [aria-selected="true"]) > :first-child { box-shadow: inset var(--ui-size-rule-medium) 0 0 var(--ui-color-text); }
+.bk-ledger caption { caption-side: top; text-align: left; padding-bottom: var(--ui-space-2); }
+
+/* ---------------------------------------------------------- stat tiles */
+/* A KPI board drawn as one ruled grid (a stock table), not gapped boxes. */
+.bk-tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0; margin-bottom: var(--ui-space-4);
+  border-top: var(--ui-size-rule) solid var(--ui-color-line); border-left: var(--ui-size-rule) solid var(--ui-color-line);
+}
+.bk-tile { display: flex; flex-direction: column; padding: var(--ui-space-3); border-right: var(--ui-size-rule) solid var(--ui-color-line); border-bottom: var(--ui-size-rule) solid var(--ui-color-line); }
+.bk-tile-label { font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm); text-transform: uppercase; color: var(--ui-color-text-muted); }
+.bk-tile-value { margin-top: var(--ui-space-1); font: var(--ui-font-type-data-display); color: var(--ui-color-text); }
+.bk-tile-sub { margin-top: auto; padding-top: var(--ui-space-1); font-size: var(--ui-font-size-label-sm); color: var(--ui-color-text-muted); }
+.bk-tile--hero { box-shadow: inset 0 var(--ui-size-rule-heavy) 0 var(--ui-color-text); }
+
+/* ---------------------------------------------------------- andon board */
+/* A printed status headline, not a lit box: a 3px ink rule on top, a hairline below (one weight per edge), the
+   state in the headline WORD. --up = the ink word, --idle = the grey word, --down = the word in the red with its
+   underline (two marks, both on a word that already says DOWN). No lamp, no motion. */
+.bk-andon {
+  display: grid; grid-template-columns: 1fr auto; align-items: end; gap: var(--ui-space-4);
+  padding: var(--ui-space-2) 0; margin-bottom: var(--ui-space-4);
+  border-top: var(--ui-size-rule-heavy) solid var(--ui-color-text); border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
+}
+.bk-andon-status { font: var(--ui-font-type-headline-lg); color: var(--ui-color-text); }
+.bk-andon-sub { margin-top: var(--ui-size-nudge); font-size: var(--ui-font-size-body-sm); color: var(--ui-color-text-muted); }
+.bk-andon-wip { text-align: right; }
+.bk-andon-wip .bk-tile-value { margin: 0; }
+.bk-andon--idle .bk-andon-status { color: var(--ui-color-text-muted); }
+.bk-andon--down .bk-andon-status { color: var(--ui-color-alert); text-decoration: underline; text-decoration-thickness: var(--ui-size-rule-medium); }
+
+/* ------------------------------------------------------------- kicker */
+/* The eyebrow line over a headline, anywhere (a hero, a section head, a story): the label look on its own line. */
+.bk-kicker {
+  display: block; margin: 0 0 var(--ui-space-1);
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm);
+  text-transform: uppercase; color: var(--ui-color-text-muted);
+}
+
+/* --------------------------------------------------------------- hero */
+/* Marketing / reading pages: a serif hero between ink rules. */
+.bk-hero { padding: var(--ui-space-6) 0 var(--ui-space-5); border-bottom: var(--ui-size-rule) solid var(--ui-color-line); margin-bottom: var(--ui-space-5); }
+.bk-hero .bk-kicker { margin-bottom: var(--ui-space-3); }
+.bk-lead { font: var(--ui-font-type-reading-lead); color: var(--ui-color-text-muted); max-width: var(--ui-size-measure); }
+.bk-actions { display: flex; flex-wrap: wrap; gap: var(--ui-space-2); margin-top: var(--ui-space-4); }
+
+/* ------------------------------------------------------ reading column */
+/* A docs / marketing page: the .bk-page root held to the reading column (with data-bk-density="reading"). */
+.bk-page--reading { max-width: var(--ui-size-reading-max); overflow-wrap: break-word; }
+
+/* -------------------------------------------------------------- crumbs */
+/* The breadcrumb trail: <nav class="bk-crumbs" aria-label="Breadcrumb"><ol><li><a>..</a></li>..<li aria-current="page">.
+   Small grey text, a faint chevron between crumbs, the current crumb in ink; the links are tap targets. */
+.bk-crumbs { margin: 0 0 var(--ui-space-4); font: var(--ui-font-type-body-sm); color: var(--ui-color-text-muted); }
+.bk-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; list-style: none; margin: 0; padding: 0; }
+.bk-crumbs li { display: inline-flex; align-items: center; margin: 0; }
+.bk-crumbs li + li::before { content: "\203A"; padding: 0 var(--ui-space-2); color: var(--ui-color-text-subtle); }
+.bk-crumbs a { display: inline-flex; align-items: center; min-height: var(--ui-size-control-md); color: var(--ui-color-text-muted); text-decoration: none; }
+@media (hover: hover) {
+  .bk-crumbs a:hover { color: var(--ui-color-text); text-decoration: underline; text-decoration-thickness: var(--ui-size-rule); }
+}
+.bk-crumbs [aria-current="page"] { color: var(--ui-color-text); }
+
+/* ------------------------------------------------------------ link row */
+/* One wrapping row of muted links under a hairline: related pages, a trust strip, a footer's links. An optional
+   leading .bk-label; the gap separates the links (no separator glyphs). The links are tap targets. */
+.bk-linkrow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--ui-space-4);
+  margin: var(--ui-space-5) 0 var(--ui-space-4); padding-top: var(--ui-space-2);
+  border-top: var(--ui-size-rule) solid var(--ui-color-line);
+  font: var(--ui-font-type-body-sm); color: var(--ui-color-text-muted);
+}
+.bk-linkrow a {
+  display: inline-flex; align-items: center; min-height: var(--ui-size-control-md);
+  color: var(--ui-color-text-muted); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: var(--ui-size-rule);
+}
+@media (hover: hover) {
+  .bk-linkrow a:hover { color: var(--ui-color-text); }
+}
+/* in the footer it is the footer's row: the footer already draws the hairline (one rule per edge) */
+.bk-footer .bk-linkrow { justify-content: center; margin: 0; padding-top: 0; border-top: 0; }
+
+/* --------------------------------------------------------------- cards */
+/* Short stories side by side (jobs, features, plug-ins): columns of at least 16rem, each child a card under a
+   hairline. No box, no tint -- the ruled KPI grid is .bk-tiles. */
+.bk-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--ui-space-5); margin: 0 0 var(--ui-space-5); }
+.bk-cards > * { padding-top: var(--ui-space-3); border-top: var(--ui-size-rule) solid var(--ui-color-line); }
+.bk-cards > * > :first-child { margin-top: 0; }
+.bk-cards > * > :last-child { margin-bottom: 0; }
+
+/* ------------------------------------------------------------- caption */
+/* A note under a figure, a demo or a download button (DESIGN's caption). A bare figcaption in reading density looks
+   the same (the element defaults above). */
+.bk-caption { margin: var(--ui-space-2) 0 var(--ui-space-3); font: var(--ui-font-type-body-sm); color: var(--ui-color-text-muted); }
+
+/* ------------------------------------------------------------- footer */
+.bk-footer {
+  margin-top: var(--ui-space-5); padding-top: var(--ui-space-3);
+  border-top: var(--ui-size-rule) solid var(--ui-color-line);
+  font-size: var(--ui-font-size-body-sm); color: var(--ui-color-text-muted); text-align: center;
+}
+
+/* --------------------------------------------------------------- charts */
+/* Framework-free inline SVG primitives (0.6.0: the newspaper + terminal redesign). Ink is scarce: one key mark in
+   ink (series-1), the rest in the one grey (--s2), a third series by a hatch (below), red (--alert) only for an
+   exception or a drop; the spot colour never appears. Gridlines are the hairline rule (reading aids, exempt from
+   3:1); the zero baseline is an ink rule. Value labels sit ON their gridline: flush left, just above the line
+   (markup: text-anchor start at the grid's x, y = the line's y - 4). Lines and rules keep their weight when a viewBox
+   scales (non-scaling strokes); text and hatches scale with it -- .bk-chart--fixed draws an SVG 1:1. */
+.bk-chart { display: block; width: 100%; height: auto; overflow: visible; }
+.bk-chart--fixed { width: auto; max-width: 100%; }
+.bk-chart-bar { fill: var(--ui-color-series-1); }
+.bk-chart-line { fill: none; stroke: var(--ui-color-series-1); stroke-width: var(--ui-size-rule-medium); stroke-linejoin: miter; }
+.bk-chart-area { fill: var(--ui-color-series-1); }
+.bk-chart-area--tint { fill: var(--ui-color-panel); }
+.bk-chart-axis { fill: none; stroke: var(--ui-color-chart-axis); stroke-width: var(--ui-size-rule); }
+.bk-chart-grid { fill: none; stroke: var(--ui-color-chart-grid); stroke-width: var(--ui-size-rule); }
+.bk-chart-baseline { fill: none; stroke: var(--ui-color-text); stroke-width: var(--ui-size-rule); }
+.bk-chart-ref { fill: none; stroke: var(--ui-color-text); stroke-width: var(--ui-size-rule); stroke-dasharray: 4 3; }
+.bk-chart-leader { fill: none; stroke: var(--ui-color-text-muted); stroke-width: var(--ui-size-rule); }
+.bk-chart :is(.bk-chart-line, .bk-chart-axis, .bk-chart-grid, .bk-chart-baseline, .bk-chart-ref, .bk-chart-leader) { vector-effect: non-scaling-stroke; }
+.bk-chart-label, .bk-chart-tick { fill: var(--ui-color-text-muted); font: var(--ui-font-type-data-sm); font-size: var(--ui-font-size-label-sm); font-variant-numeric: tabular-nums; }
+.bk-chart-value { fill: var(--ui-color-text); font: var(--ui-font-type-data-sm); font-variant-numeric: tabular-nums; }
+.bk-chart-value--quiet { fill: var(--ui-color-text-muted); }
+/* the newspaper's note on the artwork: italic serif, the one place the serif sets italic */
+.bk-chart-annot { fill: var(--ui-color-text); font: italic 400 var(--ui-font-size-label-sm)/1.25 var(--ui-font-serif); }
+/* a series named at the end of its line (prefer it to a legend) */
+.bk-chart-direct { fill: var(--ui-color-text); font: var(--ui-font-type-label-md); font-size: var(--ui-font-size-label-sm); }
+/* a square end marker; the terminal value tag at a line's end: ink box, paper figure (quiet = outlined) */
+.bk-chart-dot { fill: var(--ui-color-series-1); }
+.bk-chart-tag rect { fill: var(--ui-color-text); }
+.bk-chart-tag text { fill: var(--ui-color-background); font: var(--ui-font-type-data-sm); font-variant-numeric: tabular-nums; }
+.bk-chart-tag--quiet rect { fill: var(--ui-color-background); stroke: var(--ui-color-series-2); stroke-width: var(--ui-size-rule); }
+.bk-chart-tag--quiet text { fill: var(--ui-color-text); }
+.bk-chart-bar--s2, .bk-chart-area--s2, .bk-chart-dot--s2 { fill: var(--ui-color-series-2); }
+.bk-chart-line--s2 { stroke: var(--ui-color-series-2); }
+.bk-chart-bar--alert, .bk-chart-area--alert, .bk-chart-dot--alert { fill: var(--ui-color-alert); }
+.bk-chart-line--alert { stroke: var(--ui-color-alert); }
+.bk-chart-legend { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ui-space-3); font: var(--ui-font-type-data-sm); color: var(--ui-color-text); }
+.bk-chart-legend__item { display: inline-flex; align-items: center; gap: var(--ui-space-1); }
+.bk-chart-legend__swatch { display: inline-block; flex: none; width: 0.65em; height: 0.65em; background: var(--ui-color-series-1); }
+.bk-chart-legend__swatch--s2 { background: var(--ui-color-series-2); }
+.bk-chart-legend__swatch--alert { background: var(--ui-color-alert); }
+/* a hatched swatch: <svg class="bk-chart-legend__swatch" viewBox="0 0 12 12"><rect class="bk-hatch-<id>" ...></svg>,
+   drawn 1:1 (12px) so its pitch matches the marks */
+svg.bk-chart-legend__swatch { width: 12px; height: 12px; background: none; overflow: visible; }
+.bk-spark { display: inline-block; width: 4em; height: 1em; overflow: visible; vertical-align: -0.1em; }
+/* Beside a display figure the spark is set to the figure's cap height, sitting on its baseline: a footnote, not a second headline. */
+.bk-tile-value .bk-spark { width: 3em; height: 0.7em; vertical-align: baseline; margin-left: var(--ui-space-1); }
+
+/* ------------------------------------------------------- chart block */
+/* The newspaper figure: a 3px ink rule on top, a serif headline that STATES THE FINDING, a dek with the units, the
+   chart, then a mono source / footnote line under a hairline. <figure class="bk-chartblock"><h3 class="..-title">
+   <p class="..-dek"><svg class="bk-chart"><p class="..-source"><span>note</span><span>Source: x</span></p></figure>.
+   .bk-figures sets blocks side by side (columns of at least 20rem, one column on a phone). */
+.bk-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: var(--ui-space-6); align-items: start; margin: 0 0 var(--ui-space-5); }
+.bk-chartblock { margin: 0; padding-top: var(--ui-space-2); border-top: var(--ui-size-rule-heavy) solid var(--ui-color-text); }
+/* any heading level (h2 under a page h1, h3 inside a section): the reading-density h2 rule and padding never apply */
+.bk-chartblock > .bk-chartblock-title { margin: 0; padding: 0; border: 0; font: var(--ui-font-type-headline-lg); color: var(--ui-color-text); }
+.bk-chartblock-dek { margin: var(--ui-size-nudge) 0 var(--ui-space-3); font: var(--ui-font-type-body-md); color: var(--ui-color-text-muted); }
+.bk-chartblock-source {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 var(--ui-space-3);
+  margin: var(--ui-space-2) 0 0; padding-top: var(--ui-space-1);
+  border-top: var(--ui-size-rule) solid var(--ui-color-line);
+  font: var(--ui-font-type-data-sm); font-size: var(--ui-font-size-label-sm); color: var(--ui-color-text-muted);
+}
+.bk-chartblock .bk-chart-legend { margin-top: var(--ui-space-2); }
+/* in reading density a bare p keeps the 68ch measure ([data-bk-density] p, 0,1,1): the source line spans the figure */
+.bk-chartblock > .bk-chartblock-source { max-width: none; }
+
+/* ---------------------------------------------------- terminal board */
+/* A trading-terminal board: a framed mono table under an inverted (ink) title bar with its meta, uppercase eyebrow
+   heads, LAST / CHG with a glyph in the markup (rise = ink, drop = alert, flat = grey), a block-glyph sparkline
+   cell, a low / high range track (svg.bk-lohi: hairline track, grey end ticks, the current value as an ink tick)
+   and a footer line. Every figure is mono, tabular. */
+.bk-board { margin: 0 0 var(--ui-space-4); border: var(--ui-size-rule) solid var(--ui-color-border); font: var(--ui-font-type-data-sm); font-variant-numeric: tabular-nums; color: var(--ui-color-text); }
+.bk-board-head, .bk-board-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 var(--ui-space-3); padding: var(--ui-space-1) var(--ui-space-2); }
+.bk-board-head { background: var(--ui-color-text); color: var(--ui-color-background); }
+.bk-board-title { font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm); text-transform: uppercase; }
+.bk-board-meta { font: var(--ui-font-type-data-sm); text-transform: uppercase; }
+.bk-board-foot { border-top: var(--ui-size-rule) solid var(--ui-color-border); color: var(--ui-color-text-muted); }
+.bk-board-table { width: 100%; border-collapse: collapse; }
+.bk-board-table th, .bk-board-table td { padding: var(--ui-size-nudge) var(--ui-space-2); text-align: right; white-space: nowrap; font: var(--ui-font-type-data-sm); font-variant-numeric: tabular-nums; }
+.bk-board-table thead th {
+  font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm); text-transform: uppercase;
+  color: var(--ui-color-text-muted); border-bottom: var(--ui-size-rule) solid var(--ui-color-border);
+}
+.bk-board-table th:first-child { text-align: left; }
+.bk-board-table tbody th { color: var(--ui-color-text); }
+.bk-board-table tbody tr + tr > * { border-top: var(--ui-size-rule) solid var(--ui-color-line); }
+.bk-board-table .bk-board-lo { padding-right: var(--ui-size-nudge); color: var(--ui-color-text-muted); }
+.bk-board-table .bk-board-hi { padding-left: var(--ui-size-nudge); text-align: left; color: var(--ui-color-text-muted); }
+.bk-board-table .bk-board-range { width: 6rem; padding: 0; }
+.bk-board-table .bk-blocks { text-align: left; }
+/* change: the glyph and figure in the markup (▲ +6, ▼ -4, · 0); a drop is red with its own word-glyph. --down (red) only
+   when the drop is the exception the reader must act on; a neutral fall (a room cooling back to normal) is --fall (ink ▼) */
+.bk-chg--up { color: var(--ui-color-text); }
+.bk-chg--down { color: var(--ui-color-alert); }
+.bk-chg--fall { color: var(--ui-color-text); }
+.bk-chg--flat { color: var(--ui-color-text-muted); }
+/* a block-glyph sparkline (▁▂▃▄▅▆▇█) set in mono, no tracking: give it role="img" + an aria-label */
+.bk-blocks { font-family: var(--ui-font-mono); letter-spacing: 0; line-height: 1; white-space: nowrap; color: var(--ui-color-text); }
+.bk-lohi { display: block; width: 100%; height: var(--ui-space-3); overflow: visible; }
+.bk-lohi-track { fill: none; stroke: var(--ui-color-chart-grid); stroke-width: var(--ui-size-rule-medium); }
+.bk-lohi-end { fill: none; stroke: var(--ui-color-text-muted); stroke-width: var(--ui-size-rule); }
+.bk-lohi-cur { fill: var(--ui-color-text); }
+
+/* -------------------------------------------------------------- tape */
+/* The market-at-a-glance strip of a newspaper stock page: one ruled line of quotes set close together.
+   <dl class="bk-tape" aria-label="..."><div class="bk-quote"><dt>Name</dt><dd><span class="bk-quote-last">48</span>
+   <span class="bk-chg--fall">▼3</span></dd></div>...</dl>. Ink rule on top, hairline under, hairlines between quotes. */
+.bk-tape {
+  display: flex; flex-wrap: wrap; margin: 0 0 var(--ui-space-3); padding: 0;
+  border-top: var(--ui-size-rule) solid var(--ui-color-text); border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
+  font: var(--ui-font-type-data-sm); font-variant-numeric: tabular-nums;
+}
+.bk-quote { display: flex; align-items: baseline; gap: var(--ui-space-1); margin: 0; padding: var(--ui-space-1) var(--ui-space-3); border-left: var(--ui-size-rule) solid var(--ui-color-line); }
+.bk-quote:first-child { border-left: 0; padding-left: 0; }
+.bk-quote dt { font: var(--ui-font-type-label-sm); letter-spacing: var(--ui-font-tracking-label-sm); text-transform: uppercase; color: var(--ui-color-text-muted); }
+.bk-quote dd { margin: 0; display: flex; align-items: baseline; gap: var(--ui-space-1); }
+.bk-quote-last { font-family: var(--ui-font-mono); font-variant-numeric: tabular-nums; color: var(--ui-color-text); }
+
+/* --------------------------------------------------- small multiples */
+/* One small chart per series on a SHARED scale (more than four series = small multiples): each a figure under an ink
+   hairline, its name and last figure in the caption, alert only for the exception. */
+.bk-multiples { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: var(--ui-space-3) var(--ui-space-4); margin: 0; }
+.bk-multiple { margin: 0; padding-top: var(--ui-space-1); border-top: var(--ui-size-rule) solid var(--ui-color-text); }
+.bk-multiple > figcaption { display: flex; justify-content: space-between; gap: var(--ui-space-2); font: var(--ui-font-type-data-sm); font-variant-numeric: tabular-nums; color: var(--ui-color-text-muted); }
+.bk-multiple-value { color: var(--ui-color-text); }
+.bk-multiple-value.bk-chg--down { color: var(--ui-color-alert); }
+.bk-multiple > .bk-chart { margin-top: var(--ui-size-nudge); }
+
+/* ------------------------------------------------------- ranked bars */
+/* The newspaper table-chart: <ol class="bk-ranked"><li><span class="bk-ranked-name"> <span class="bk-ranked-bar">
+   <i style="width: <share>%"></i></span> <span class="bk-ranked-value">. The leader (first row) in ink, the rest
+   grey; hairline rows; the figure mono, flush right. */
+.bk-ranked { margin: 0; padding: 0; list-style: none; font: var(--ui-font-type-data-sm); font-variant-numeric: tabular-nums; }
+.bk-ranked > li { display: grid; grid-template-columns: minmax(6rem, 9.5rem) 1fr 2.5rem; align-items: center; gap: var(--ui-space-2); margin: 0; padding: var(--ui-size-nudge) 0; border-bottom: var(--ui-size-rule) solid var(--ui-color-line); }
+.bk-ranked-name { color: var(--ui-color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-ranked-bar > i { display: block; height: var(--ui-space-2); background: var(--ui-color-series-2); }
+.bk-ranked > li:first-child .bk-ranked-bar > i { background: var(--ui-color-series-1); }
+.bk-ranked-value { text-align: right; color: var(--ui-color-text); }
+
+/* ----------------------------------------------------------- hatches */
+/* The tone ladder: solid, diag-dense, diag, diag-sparse, back, cross, horiz, vert, dots, grid, outline. One ink
+   (--ui-color-hatch-ink), one 1px weight; spacing sets the tone. The nine patterns live in hatches.svg, a defs fragment a
+   page inlines once (Chrome cannot paint with an external SVG file); .bk-hatches hides it. Put .bk-hatch-<id> on an
+   SVG mark or a legend swatch's rect. Reserved meaning: diagonal = partial / estimated, .bk-hatch-dashed (a dashed
+   outline on paper, so a band behind it never shows through) = projected, .bk-hatch-band (diag-sparse, no edge) = a window / forecast. Red is never a hatch. */
+.bk-hatches { position: absolute; width: 0; height: 0; overflow: hidden; }
+.bk-hatch-stroke { fill: none; stroke: var(--ui-color-hatch-ink); stroke-width: var(--ui-size-rule); }
+.bk-hatch-fleck { fill: var(--ui-color-hatch-ink); stroke: none; }
+.bk-hatch-solid { fill: var(--ui-color-hatch-ink); }
+.bk-hatch-diag-dense { fill: url(#bk-hatch-diag-dense); }
+.bk-hatch-diag { fill: url(#bk-hatch-diag); }
+.bk-hatch-diag-sparse { fill: url(#bk-hatch-diag-sparse); }
+.bk-hatch-back { fill: url(#bk-hatch-back); }
+.bk-hatch-cross { fill: url(#bk-hatch-cross); }
+.bk-hatch-horiz { fill: url(#bk-hatch-horiz); }
+.bk-hatch-vert { fill: url(#bk-hatch-vert); }
+.bk-hatch-dots { fill: url(#bk-hatch-dots); }
+.bk-hatch-grid { fill: url(#bk-hatch-grid); }
+.bk-hatch-outline { fill: var(--ui-color-background); }
+/* every patterned or outlined mark keeps its edge in the hatch ink, so its extent reads at any tone */
+:is(.bk-hatch-diag-dense, .bk-hatch-diag, .bk-hatch-diag-sparse, .bk-hatch-back, .bk-hatch-cross, .bk-hatch-horiz, .bk-hatch-vert, .bk-hatch-dots, .bk-hatch-grid, .bk-hatch-outline) {
+  stroke: var(--ui-color-hatch-ink); stroke-width: var(--ui-size-rule);
+}
+.bk-hatch-dashed { fill: var(--ui-color-background); stroke: var(--ui-color-hatch-ink); stroke-width: var(--ui-size-rule); stroke-dasharray: 3 2; }
+.bk-hatch-band { stroke: none; }
+
+@media print {
+  .bk-chart, .bk-chartblock, .bk-board, .bk-board-head, .bk-tape, .bk-multiples, .bk-ranked, .bk-ranked-bar > i, .bk-lohi,
+  .bk-chart-legend__swatch { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

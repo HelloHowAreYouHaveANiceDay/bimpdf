@@ -9,6 +9,7 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+<!-- ui-kit: raw-color -- theme-color meta cannot read a CSS variable; this is the dark spot (design/tokens.css) -->
 <meta name="theme-color" content="#C8721E">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://bimpdf.com/">
@@ -38,42 +39,43 @@
 }
 </script>
 <link rel="stylesheet" href="/kit/tokens.css">
+<link rel="stylesheet" href="/kit/spot.css">
 <link rel="stylesheet" href="/kit/base.css">
 <style>
   /* bimpdf.com on the Broadsheet kit (packages/ui-kit, copied to /kit/ at build time by gen-version.mjs).
      The kit draws the page: the reading column (.bk-page--reading), the masthead and nav, the hero, the bare
      h2 / list / table / pre looks (reading-density element defaults), cards, captions, link rows, the footer -- and
-     the spot colour, from data-bk-property="bimpdf". This block is layout only, every value a --bk-* token. */
-  html { scroll-behavior: smooth; }
+     the spot colour, from. This block is layout only, every value a --bk-* token. */
+  @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 
   /* ---- hero: the logo beside the text on a wide screen ---- */
   .hero { display: grid; grid-template-columns: 1fr; justify-items: start; }
-  .hero .logo { width: 96px; height: 96px; margin-bottom: var(--bk-space-4); }
-  .hero h1 { margin-bottom: var(--bk-space-2); }
+  .hero .logo { width: 96px; height: 96px; margin-bottom: var(--ui-space-4); }
+  .hero h1 { margin-bottom: var(--ui-space-2); }
   @media (min-width: 720px) {
-    .hero { grid-template-columns: auto 1fr; column-gap: var(--bk-space-5); }
+    .hero { grid-template-columns: auto 1fr; column-gap: var(--ui-space-5); }
     .hero .logo { grid-row: 1 / span 6; width: 132px; height: 132px; margin: 0; }
   }
 
   /* ---- element-class registry: one ruled grid, like the kit's tiles ---- */
   .classes {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin: var(--bk-space-3) 0;
-    border-top: var(--bk-rule) solid var(--bk-line); border-left: var(--bk-rule) solid var(--bk-line);
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin: var(--ui-space-3) 0;
+    border-top: var(--ui-size-rule) solid var(--ui-color-line); border-left: var(--ui-size-rule) solid var(--ui-color-line);
   }
   .bk-page .classes code {
-    display: block; padding: var(--bk-space-2); text-align: center; font-size: var(--bk-type-data-md-size);
+    display: block; padding: var(--ui-space-2); text-align: center; font-size: var(--ui-font-size-data-md);
     background: transparent; border: 0;
-    border-right: var(--bk-rule) solid var(--bk-line); border-bottom: var(--bk-rule) solid var(--bk-line);
+    border-right: var(--ui-size-rule) solid var(--ui-color-line); border-bottom: var(--ui-size-rule) solid var(--ui-color-line);
   }
 
   /* ---- the add-in card: its icon beside the text ---- */
-  .plugin { display: flex; gap: var(--bk-space-5); align-items: flex-start; }
+  .plugin { display: flex; gap: var(--ui-space-5); align-items: flex-start; }
   .plugin img { width: 76px; height: 76px; flex: none; }
   .plugin h2 { margin-top: 0; }
   @media (max-width: 520px) { .plugin { flex-direction: column; } }
 
   /* ---- footer: the brand line ---- */
-  .foot-logo { width: 16px; height: 16px; vertical-align: middle; margin-right: var(--bk-space-1); }
+  .foot-logo { width: 16px; height: 16px; vertical-align: middle; margin-right: var(--ui-space-1); }
 </style>
 
 <!-- Google tag (gtag.js) -->
@@ -85,7 +87,7 @@
   gtag('config', 'G-SBS99Z1JHX');
 </script>
 </head>
-<body class="bk-page bk-page--reading" data-bk-density="reading" data-bk-property="bimpdf">
+<body class="bk-page bk-page--reading" data-bk-density="reading">
 
 <header class="bk-masthead">
   <nav class="bk-nav" aria-label="Site">

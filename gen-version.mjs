@@ -52,15 +52,18 @@ copyFileSync(
 )
 console.log('schema/review-request-contract.json: copied from packages/core/src/markups')
 
-// Broadsheet UI kit (packages/ui-kit): the pages link /kit/tokens.css + /kit/base.css. Copied at build time from
-// the committed, immutable published/<KIT_VERSION>/ copy -- pinned to kit 0.6.5 (0.5.0-0.6.5 only add chart/board/hatch classes; 0.4.1 the logo in the nav row, wide tables; 0.4.0 the portfolio primitives; 0.3.1 since slice U),
-// so a workspace kit change does not ship to bimpdf.com until the pin moves.
-export const KIT_VERSION = '0.6.5'
+// Broadsheet UI kit: the pages link /kit/tokens.css + /kit/spot.css + /kit/base.css on their own origin. Copied at
+// build time from the committed, immutable design/vendor/broadsheet/<KIT_VERSION>/ copy (from ui.bimisland.com/kit/<v>/,
+// locked by its SHA256SUMS), so a Broadsheet release does not ship to bimpdf.com until the pin moves.
+// spot.css is design/tokens.css: bimpdf's own --ui-color-spot on top of Broadsheet.
+export const KIT_VERSION = '1.0.0'
 mkdirSync('kit', { recursive: true })
 for (const f of ['tokens.css', 'base.css']) {
-  copyFileSync(`./vendor/kit/${KIT_VERSION}/${f}`, `kit/${f}`)
-  console.log(`kit/${f}: copied from vendor/kit/${KIT_VERSION}`)
+  copyFileSync(`./design/vendor/broadsheet/${KIT_VERSION}/${f}`, `kit/${f}`)
+  console.log(`kit/${f}: copied from design/vendor/broadsheet/${KIT_VERSION}`)
 }
+copyFileSync('./design/tokens.css', 'kit/spot.css')
+console.log('kit/spot.css: copied from design/tokens.css')
 
 // /spec: the normative text from docs/specs/0002-bimpdf-format.md plus version, schema links and the sidecar table,
 // all read from vendor/core (gen-spec.mjs). /ns/1/ and /ns/1.0/ are committed static pages.

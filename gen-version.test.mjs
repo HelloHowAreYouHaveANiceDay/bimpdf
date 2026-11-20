@@ -11,8 +11,8 @@ const versionPath = join(appPath, 'version.json')
 const schemaPath = join(appPath, 'schema')
 const coreSchemaPath = join(appPath, 'vendor/core/src/schema')
 const kitPath = join(appPath, 'kit')
-// pinned to kit 0.6.5 (0.5.0-0.6.5: chart/board/hatch additions; 0.4.0: the portfolio primitives)
-const kitSourcePath = join(appPath, 'vendor/kit/0.6.5')
+// pinned to Broadsheet 1.0.0 (design/vendor/broadsheet/1.0.0, from ui.bimisland.com/kit/1.0.0/)
+const kitSourcePath = join(appPath, 'design/vendor/broadsheet/1.0.0')
 
 test('gen-version writes version.json, copies every core schema and the UI kit', () => {
   const backupRoot = mkdtempSync(join(tmpdir(), 'bimpdf-site-gen-version-'))
@@ -77,7 +77,7 @@ test('gen-version writes version.json, copies every core schema and the UI kit',
       readFileSync(join(schemaPath, 'review-core-vectors.json'), 'utf8'),
       readFileSync(join(appPath, 'vendor/core/conformance/review-core/vectors.json'), 'utf8'),
     )
-    // the pages link /kit/tokens.css + /kit/base.css: byte-identical copies of the pinned published kit
+    // the pages link /kit/tokens.css + /kit/base.css: byte-identical copies of the pinned vendored kit
     for (const f of ['tokens.css', 'base.css']) {
       assert.deepEqual(
         readFileSync(join(kitPath, f)),

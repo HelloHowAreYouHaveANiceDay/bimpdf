@@ -1,0 +1,16 @@
+{
+  "pack": "broadsheet",
+  "version": "1.0.0",
+  "vendor": "design/vendor/broadsheet/1.0.0",
+  "tokens": ["design/tokens.css"],
+  "extensions": [],
+  "sources": [
+    "index.html",
+    "404.html",
+    "gen-spec.mjs",
+    "pages-src/**/*.html",
+    "ns/**/*.html",
+    "examples/index.html"
+  ],
+  "exclude": ["**/*.test.*"]
+}
